@@ -1,7 +1,16 @@
 package org.quuux.huescript;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
+import android.content.Context;
+import android.os.Environment;
+import android.os.FileObserver;
+import android.support.v4.app.LoaderManager;
+import android.support.v4.content.AsyncTaskLoader;
+import android.support.v4.content.Loader;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.ActionBar;
 import android.support.v4.app.Fragment;
@@ -16,21 +25,61 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.ListView;
 import android.widget.TextView;
 
-public class MainActivity extends ActionBarActivity implements View.OnClickListener {
+public class MainActivity
+        extends ActionBarActivity
+        implements LoaderManager.LoaderCallbacks<List<Sandbox>>, AdapterView.OnItemClickListener {
+
+    private static final String TAG = Log.buildTag(MainActivity.class);
+    private ListView mListView;
+    private Adapter mAdapter;
+    private FileObserver mObserver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_main);
 
-        final Button button = (Button) findViewById(R.id.run);
-        button.setOnClickListener(this);
+        mAdapter = new Adapter(this);
+
+        mListView = (ListView) findViewById(R.id.list);
+        mListView.setAdapter(mAdapter);
+        mListView.setOnItemClickListener(this);
+
+        getSupportLoaderManager().initLoader(0, null, this).forceLoad();
+
+        final int mask = FileObserver.CREATE
+                | FileObserver.DELETE
+                | FileObserver.MODIFY
+                | FileObserver.MOVED_FROM
+                | FileObserver.MOVED_TO;
+
+        mObserver = new FileObserver(getScriptsDir().getAbsolutePath(), mask) {
+            @Override
+            public void onEvent(final int event, final String path) {
+                if (path != null) {
+                    Log.d(TAG, "file changed: %s", path);
+                    getSupportLoaderManager().restartLoader(0, null, MainActivity.this).forceLoad();
+                }
+            }
+        };
+
+        mObserver.startWatching();
 
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mObserver.stopWatching();
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -53,50 +102,108 @@ public class MainActivity extends ActionBarActivity implements View.OnClickListe
     }
 
     @Override
-    public void onClick(final View v) {
-        switch (v.getId()) {
-            case R.id.run:
-                final Sandbox sandbox = Sandbox.fromAssetManager(this, "test.js");
-                new Thread(sandbox).start();
-                break;
-
-            default:
-                break;
-        }
+    public android.support.v4.content.Loader<List<Sandbox>> onCreateLoader(final int i, final Bundle bundle) {
+        return new ScriptLoader(this, getScriptsDir());
     }
 
-    /**
-     * A placeholder fragment containing a simple view.
-     */
-    public static class PlaceholderFragment extends Fragment {
-        /**
-         * The fragment argument representing the section number for this
-         * fragment.
-         */
-        private static final String ARG_SECTION_NUMBER = "section_number";
+    @Override
+    public void onLoadFinished(final android.support.v4.content.Loader<List<Sandbox>> listLoader, final List<Sandbox> sandboxes) {
+        mAdapter.release();
+        for (final Sandbox s : sandboxes)
+            mAdapter.add(s);
+        mAdapter.notifyDataSetChanged();
+    }
 
-        /**
-         * Returns a new instance of this fragment for the given section
-         * number.
-         */
-        public static PlaceholderFragment newInstance(int sectionNumber) {
-            PlaceholderFragment fragment = new PlaceholderFragment();
-            Bundle args = new Bundle();
-            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
-            fragment.setArguments(args);
-            return fragment;
-        }
+    @Override
+    public void onLoaderReset(final android.support.v4.content.Loader<List<Sandbox>> listLoader) {
+        mAdapter.release();
+        mAdapter.notifyDataSetChanged();
+    }
 
-        public PlaceholderFragment() {
+    @Override
+    public void onItemClick(final AdapterView<?> parent, final View view, final int position, final long id) {
+        final Sandbox sandbox = mAdapter.getItem(position);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                sandbox.run(MainActivity.this);
+            }
+        }).start();
+    }
+
+    private File getScriptsDir() {
+        return new File(Environment.getExternalStorageDirectory(), "HueScripts");
+    }
+
+    static class Holder {
+        TextView name;
+    }
+
+    class Adapter extends ArrayAdapter<Sandbox> {
+
+        public Adapter(final Context context) {
+            super(context, 0);
         }
 
         @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                Bundle savedInstanceState) {
-            View rootView = inflater.inflate(R.layout.fragment_main, container, false);
-            TextView textView = (TextView) rootView.findViewById(R.id.section_label);
-            textView.setText(Integer.toString(getArguments().getInt(ARG_SECTION_NUMBER)));
-            return rootView;
+        public View getView(final int position, final View convertView, final ViewGroup parent) {
+            final View v = convertView != null ? convertView : newView(parent);
+            bindView(v, getItem(position));
+            return v;
+        }
+
+        private View newView(final ViewGroup parent) {
+            final LayoutInflater inflater = getLayoutInflater();
+            final View v = inflater.inflate(R.layout.list_item, parent, false);
+
+            final Holder holder = new Holder();
+            holder.name = (TextView)v.findViewById(R.id.name);
+
+            v.setTag(holder);
+
+            return v;
+        }
+
+        private void bindView(final View v, final Sandbox item) {
+            final Holder holder = (Holder) v.getTag();
+            holder.name.setText(item.getName());
+        }
+
+        public void release() {
+            for (int i=0; i<getCount(); i++)
+                getItem(i).release();
+
+            clear();
+        }
+    }
+
+    static class ScriptLoader extends AsyncTaskLoader<List<Sandbox>> {
+        private static final String TAG = "Scriptloader";
+        private final File mDir;
+
+        public ScriptLoader(final Context context, final File dir) {
+            super(context);
+            mDir = dir;
+        }
+
+        @Override
+        public List<Sandbox> loadInBackground() {
+            final List<Sandbox> rv = new ArrayList<Sandbox>();
+
+            Log.d(TAG, "loading scripts from %s", mDir.getAbsolutePath());
+
+            for(final File f : mDir.listFiles()) {
+                if (f.isFile() && f.getName().endsWith(".js")) {
+                    Log.d(TAG, "loading script %s", f.getAbsolutePath());
+
+                    final Sandbox s = Sandbox.fromFile(getContext(), f);
+                    s.load();
+
+                    rv.add(s);
+                }
+            }
+
+            return rv;
         }
     }
 

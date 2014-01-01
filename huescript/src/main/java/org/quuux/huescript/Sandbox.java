@@ -22,16 +22,21 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.WrapFactory;
 import org.mozilla.javascript.Wrapper;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public class Sandbox implements Runnable {
+public class Sandbox  {
 
     private static final String TAG = Log.buildTag(Sandbox.class);
     private final InputStreamReader mSrc;
     private final String mName;
-    private NativeObject mScope;
-    private ScriptableObject mGlobal;
+
+    private Scriptable mScope;
+    private Context mContext;
+    private Function mFunction;
 
     public Sandbox(final String name, final InputStreamReader src) {
         mName = name;
@@ -41,66 +46,41 @@ public class Sandbox implements Runnable {
     }
 
     private void init() {
-        ContextFactory.getGlobal().call(new ContextAction() {
-            @Override
-            public Object run(final Context context) {
+        mContext = Context.enter();
+        mScope = mContext.initStandardObjects();
 
-                mGlobal = context.initStandardObjects();
-                mScope = new NativeObject();
-                mScope.setPrototype(mGlobal);
+        // NB special android magic
+        mContext.setOptimizationLevel(-1);
 
-                final Scriptable packages = (Scriptable) mGlobal.get("Packages", mGlobal);
-                final Object android = packages.get("android", packages);
-                mGlobal.defineProperty("android", android, ScriptableObject.DONTENUM);
+        // FIXME put these into a "http" namespace
+        mScope.put("GET",  mScope, HttpOp.Get());
+        mScope.put("PUT",  mScope, HttpOp.Put());
+        mScope.put("POST", mScope, HttpOp.Post());
 
-                // FIXME put these into a "http" namespace
-                mGlobal.defineProperty("GET", HttpOp.Get(), ScriptableObject.DONTENUM);
-                mGlobal.defineProperty("PUT", HttpOp.Get(), ScriptableObject.DONTENUM);
-                mGlobal.defineProperty("POST", HttpOp.Get(), ScriptableObject.DONTENUM);
-
-                final WrapFactory wrapFactory = context.getWrapFactory();
-                define("Log", wrapFactory.wrapJavaClass(context, mGlobal, Log.class));
-
-                return null;
-            }
-        });
+        final WrapFactory wrapFactory = mContext.getWrapFactory();
+        define("Log", wrapFactory.wrapJavaClass(mContext, mScope, Log.class));
     }
 
-    @Override
-    public void run() {
-        evaluate();
+    public String getName() {
+        return mName;
+    }
+
+    public boolean run(final android.content.Context context) {
+        try {
+            mFunction.call(mContext, mScope, mScope, new Object[] {context});
+        } catch (Exception e) {
+            Log.e(TAG, "error running script", e);
+            return false;
+        }
+
+        return true;
     }
 
     public void define(final String name, final Object value) {
-        ContextFactory.getGlobal().call(new ContextAction() {
-            public Object run(org.mozilla.javascript.Context cx) {
-                final WrapFactory wrapFactory = cx.getWrapFactory();
-                final Object wrapped = wrapFactory.wrap(cx, mGlobal, value, null);
-                mScope.put(name, mScope, wrapped);
-                return null;
-            }
-        });
+        final WrapFactory wrapFactory = mContext.getWrapFactory();
+        final Object wrapped = wrapFactory.wrap(mContext, mScope, value, null);
+        mScope.put(name, mScope, wrapped);
     }
-
-    public void evaluate() {
-        ContextFactory.getGlobal().call(new ContextAction() {
-            @Override
-            public Object run(final Context context) {
-
-                // NB special android magic
-                context.setOptimizationLevel(-1);
-
-                try {
-                    context.evaluateReader(mScope, mSrc, mName, 0, null);
-                } catch (IOException e) {
-                    Log.e(TAG, "error evaluating script", e);
-                }
-
-                return null;
-            }
-        });
-    }
-
 
     public static Sandbox fromAssetManager(final android.content.Context context, final String filename) {
         final AssetManager assetManager = context.getResources().getAssets();
@@ -117,6 +97,48 @@ public class Sandbox implements Runnable {
         rv.define("context", context);
 
         return rv;
+    }
+
+    public static Sandbox fromFile(final android.content.Context context, final File file) {
+        final Sandbox rv;
+        try {
+            final FileInputStream in = new FileInputStream(file);
+            rv = new Sandbox(file.getName(), new InputStreamReader(in));
+        } catch (FileNotFoundException e) {
+            Log.e(TAG, "error loading sandbox from file", e);
+            return null;
+        }
+
+        rv.define("context", context);
+
+        return rv;
+    }
+
+    public boolean load() {
+
+        final Object o;
+        try {
+            Log.d(TAG, "start execution...");
+            o = mContext.evaluateReader(mScope, mSrc, mName, 0, null);
+            Log.d(TAG, "execution complete");
+        } catch (IOException e) {
+            Log.e(TAG, "Error loading script", e);
+            return false;
+        }
+
+        Log.d(TAG, "script loaded -> %s", o);
+        if (!(o instanceof Function)) {
+            Log.e(TAG, "script loading did not result in a function!");
+            return false;
+        }
+
+        mFunction = (Function)o;
+
+        return true;
+    }
+
+    public void release() {
+        mContext.exit();
     }
 
     private static class HttpOp extends BaseFunction {
@@ -146,32 +168,38 @@ public class Sandbox implements Runnable {
 
             final String url = args[1].toString();
 
+            int index;
             final String data;
             if (mMethod == Request.Method.GET) {
                 data = null;
+                index = 2;
             } else {
                 if (!(args[2] instanceof CharSequence)) {
                     throw Context.reportRuntimeError("Expected String as third argument");
                 }
                 data = args[2].toString();
+                index = 3;
             }
 
-            final int offset = data == null ? 0 : 1;
+            final Function callback;
+            if (args.length > index) {
+                if (!(args[index] instanceof Function) || args[index] == Context.getUndefinedValue()) {
+                    throw Context.reportRuntimeError("Expected callback Function as argument");
+                }
 
-            if (!(args[2 + offset] instanceof Function)) {
-                throw Context.reportRuntimeError("Expected callback Function as argument");
+                callback = (Function)args[index];
+                index++;
+            } else {
+                callback = null;
             }
-
-            final Function callback = (Function)args[2 + offset];
 
             final Function errorCallback;
-            if (args.length > (2 + offset)) {
-
-                if (!(args[3 + offset] instanceof Function)) {
+            if (args.length > index) {
+                if (!(args[index] instanceof Function) || args[index] == Context.getUndefinedValue()) {
                     throw Context.reportRuntimeError("Expected error callback Function as argument");
                 }
 
-                errorCallback = (Function)args[3 + offset];
+                errorCallback = (Function)args[index];
 
             } else {
                 errorCallback = null;
@@ -183,13 +211,19 @@ public class Sandbox implements Runnable {
 
                     Log.d(TAG, "response: %s", s);
 
-                    ContextFactory.getGlobal().call(new ContextAction() {
-                        @Override
-                        public Object run(final Context context) {
-                            callback.call(cx, scope, thisObj, new Object[]{s});
-                            return null;
-                        }
-                    });
+                    if (callback != null) {
+                        ContextFactory.getGlobal().call(new ContextAction() {
+                            @Override
+                            public Object run(final Context context) {
+                                try {
+                                    callback.call(cx, scope, thisObj, new Object[] { s });
+                                } catch (Exception e) {
+                                    Log.d(TAG, "error calling callback", e);
+                                }
+                                return null;
+                            }
+                        });
+                    }
                 }
             };
 
@@ -203,7 +237,11 @@ public class Sandbox implements Runnable {
                         ContextFactory.getGlobal().call(new ContextAction() {
                             @Override
                             public Object run(final Context context) {
-                                errorCallback.call(cx, scope, thisObj, new Object[]{volleyError});
+                                try {
+                                    errorCallback.call(cx, scope, thisObj, new Object[]{volleyError});
+                                } catch (Exception e) {
+                                    Log.d(TAG, "error calling callback", e);
+                                }
                                 return null;
                             }
                         });
