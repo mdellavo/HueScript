@@ -22,26 +22,25 @@ import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.WrapFactory;
 import org.mozilla.javascript.Wrapper;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
 public class Sandbox  {
 
     private static final String TAG = Log.buildTag(Sandbox.class);
-    private final InputStreamReader mSrc;
     private final String mName;
 
     private Scriptable mScope;
     private Context mContext;
-    private Function mFunction;
+    private NativeObject mScript;
 
-    public Sandbox(final String name, final InputStreamReader src) {
+    public Sandbox(final String name) {
         mName = name;
-        mSrc = src;
-
         init();
     }
 
@@ -52,12 +51,13 @@ public class Sandbox  {
         // NB special android magic
         mContext.setOptimizationLevel(-1);
 
-        // FIXME put these into a "http" namespace
-        mScope.put("GET",  mScope, HttpOp.Get());
-        mScope.put("PUT",  mScope, HttpOp.Put());
-        mScope.put("POST", mScope, HttpOp.Post());
+        // FIXME implement in js
+        define("GET", HttpOp.Get());
+        define("PUT", HttpOp.Put());
+        define("POST", HttpOp.Post());
 
         final WrapFactory wrapFactory = mContext.getWrapFactory();
+        wrapFactory.setJavaPrimitiveWrap(false);
         define("Log", wrapFactory.wrapJavaClass(mContext, mScope, Log.class));
     }
 
@@ -65,9 +65,18 @@ public class Sandbox  {
         return mName;
     }
 
+    public String getScriptName() {
+        return (String) mScript.get("name");
+    }
+
+    public String getScriptDescription() {
+        return (String) mScript.get("description");
+    }
+
     public boolean run(final android.content.Context context) {
         try {
-            mFunction.call(mContext, mScope, mScope, new Object[] {context});
+            final Function func = (Function) mScript.get("main");
+            func.call(mContext, mScope, mScope, new Object[] {context});
         } catch (Exception e) {
             Log.e(TAG, "error running script", e);
             return false;
@@ -82,63 +91,68 @@ public class Sandbox  {
         mScope.put(name, mScope, wrapped);
     }
 
-    public static Sandbox fromAssetManager(final android.content.Context context, final String filename) {
-        final AssetManager assetManager = context.getResources().getAssets();
+    public boolean evaluate(final File src) {
 
-        final Sandbox rv;
-        try {
-            final InputStreamReader in = new InputStreamReader(assetManager.open(filename));
-            rv = new Sandbox(filename, in);
-        } catch (IOException e) {
-            Log.e(TAG, "error creating sandbox", e);
-            return null;
-        }
-
-        rv.define("context", context);
-
-        return rv;
-    }
-
-    public static Sandbox fromFile(final android.content.Context context, final File file) {
-        final Sandbox rv;
-        try {
-            final FileInputStream in = new FileInputStream(file);
-            rv = new Sandbox(file.getName(), new InputStreamReader(in));
-        } catch (FileNotFoundException e) {
-            Log.e(TAG, "error loading sandbox from file", e);
-            return null;
-        }
-
-        rv.define("context", context);
-
-        return rv;
-    }
-
-    public boolean load() {
+        define("load", new LoadScript(src));
 
         final Object o;
         try {
             Log.d(TAG, "start execution...");
-            o = mContext.evaluateReader(mScope, mSrc, mName, 0, null);
+            o = mContext.evaluateReader(mScope, new BufferedReader(new FileReader(src)), mName, 0, null);
             Log.d(TAG, "execution complete");
         } catch (IOException e) {
             Log.e(TAG, "Error loading script", e);
             return false;
         }
 
-        Log.d(TAG, "script loaded -> %s", o);
+        Log.d(TAG, "script loaded: %s -> %s", o, mContext.toString(o));
         if (!(o instanceof Function)) {
             Log.e(TAG, "script loading did not result in a function!");
             return false;
         }
 
-        mFunction = (Function)o;
+        final Function func = (Function)o;
+        mScript = (NativeObject) func.call(mContext, mScope, mScope, new Object[] {});
 
         return true;
     }
 
     public void release() {
         mContext.exit();
+    }
+
+    public class LoadScript extends BaseFunction {
+
+        private final File mFile;
+
+        public LoadScript(final File f) {
+            mFile = f;
+        }
+
+        @Override
+        public Object call(final Context cx, final Scriptable scope, final Scriptable thisObj, final Object[] args) {
+
+            if (args.length < 1) {
+                throw Context.reportRuntimeError("Expected String as first argument");
+            }
+
+            if (!(args[0] instanceof CharSequence)) {
+                throw Context.reportRuntimeError(String.format("Expected String as first argument, got %s", args[0].getClass()));
+            }
+
+            final String path = (String) args[0];
+            final File f = new File(mFile.getParentFile(), path);
+
+            Log.d(TAG, "loading %s", path);
+
+            try {
+                cx.evaluateReader(mScope, new BufferedReader(new FileReader(f)), mName, 0, null);
+            } catch (IOException e) {
+                Log.e(TAG, "Error loading script", e);
+            }
+
+            return thisObj;
+        }
     }
 
     private static class HttpOp extends BaseFunction {
@@ -152,18 +166,29 @@ public class Sandbox  {
         @Override
         public Object call(final Context cx, final Scriptable scope, final Scriptable thisObj, final Object[] args) {
 
+            if (args.length < 2) {
+                throw Context.reportRuntimeError("Incorrect number of parameters");
+            }
+
             if (!(args[0] instanceof Wrapper)) {
-                throw Context.reportRuntimeError("Expected Context as first argument");
+                throw Context.reportRuntimeError(
+                        String.format("Expected Context as first argument, got %s", args[0].getClass())
+                );
             }
 
             final Object o = ((Wrapper)args[0]).unwrap();
             if (!(o instanceof android.content.Context)) {
-                throw Context.reportRuntimeError("Expected Context as first argument");
+                throw Context.reportRuntimeError(
+                        String.format("Expected Context as first argument, got %s", o.getClass())
+                );
             }
+
             final android.content.Context context = (android.content.Context)o;
 
             if (!(args[1] instanceof CharSequence)) {
-                throw Context.reportRuntimeError("Expected String as second argument");
+                throw Context.reportRuntimeError(
+                        String.format("Expected String as second argument, got %s", args[1].getClass())
+                );
             }
 
             final String url = args[1].toString();
@@ -175,7 +200,9 @@ public class Sandbox  {
                 index = 2;
             } else {
                 if (!(args[2] instanceof CharSequence)) {
-                    throw Context.reportRuntimeError("Expected String as third argument");
+                    throw Context.reportRuntimeError(
+                            String.format("Expected String as third argument, got %s", args[2].getClass())
+                    );
                 }
                 data = args[2].toString();
                 index = 3;
@@ -184,7 +211,9 @@ public class Sandbox  {
             final Function callback;
             if (args.length > index) {
                 if (!(args[index] instanceof Function) || args[index] == Context.getUndefinedValue()) {
-                    throw Context.reportRuntimeError("Expected callback Function as argument");
+                    throw Context.reportRuntimeError(
+                            String.format("Expected callback Function as argument, got %s", args[index].getClass())
+                    );
                 }
 
                 callback = (Function)args[index];
@@ -196,7 +225,9 @@ public class Sandbox  {
             final Function errorCallback;
             if (args.length > index) {
                 if (!(args[index] instanceof Function) || args[index] == Context.getUndefinedValue()) {
-                    throw Context.reportRuntimeError("Expected error callback Function as argument");
+                    throw Context.reportRuntimeError(
+                            String.format("Expected error callback Function as argument, got %s", args[index].getClass())
+                    );
                 }
 
                 errorCallback = (Function)args[index];

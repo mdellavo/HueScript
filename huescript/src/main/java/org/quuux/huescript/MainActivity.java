@@ -137,6 +137,8 @@ public class MainActivity
 
     static class Holder {
         TextView name;
+        TextView scriptName;
+        TextView scriptDescription;
     }
 
     class Adapter extends ArrayAdapter<Sandbox> {
@@ -158,6 +160,8 @@ public class MainActivity
 
             final Holder holder = new Holder();
             holder.name = (TextView)v.findViewById(R.id.name);
+            holder.scriptName = (TextView)v.findViewById(R.id.script_name);
+            holder.scriptDescription = (TextView)v.findViewById(R.id.script_description);
 
             v.setTag(holder);
 
@@ -167,6 +171,8 @@ public class MainActivity
         private void bindView(final View v, final Sandbox item) {
             final Holder holder = (Holder) v.getTag();
             holder.name.setText(item.getName());
+            holder.scriptName.setText(item.getScriptName());
+            holder.scriptDescription.setText(item.getScriptDescription());
         }
 
         public void release() {
@@ -192,14 +198,20 @@ public class MainActivity
 
             Log.d(TAG, "loading scripts from %s", mDir.getAbsolutePath());
 
-            for(final File f : mDir.listFiles()) {
+            for (final File f : mDir.listFiles()) {
                 if (f.isFile() && f.getName().endsWith(".js")) {
                     Log.d(TAG, "loading script %s", f.getAbsolutePath());
 
-                    final Sandbox s = Sandbox.fromFile(getContext(), f);
-                    s.load();
+                    final Sandbox s = new Sandbox(f.getName());
+                    s.define("context", getContext());
 
-                    rv.add(s);
+                    try {
+                        s.evaluate(f);
+                        rv.add(s);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error loading script: " + f.getPath(), e);
+                    }
+
                 }
             }
 
