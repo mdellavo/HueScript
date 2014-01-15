@@ -118,7 +118,11 @@ public class Sandbox  {
     }
 
     public void release() {
-        mContext.exit();
+        try {
+            mContext.exit();
+        } catch (Exception e) {
+            Log.e(TAG, "error releasing script", e);
+        }
     }
 
     public class LoadScript extends BaseFunction {

@@ -26,8 +26,8 @@ function() {
 
          session.setLightState(context, lightId, {
            'on': true,
-          'bri': 0,
-           'hue': hue + hue_slop,
+           'bri': 50,
+           'hue': (hue + hue_slop) % hue_max,
            'sat': 255,
            'transitiontime': 10
          });
