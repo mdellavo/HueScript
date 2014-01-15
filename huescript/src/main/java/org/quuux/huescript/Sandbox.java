@@ -170,13 +170,7 @@ public class Sandbox  {
                 throw Context.reportRuntimeError("Incorrect number of parameters");
             }
 
-            if (!(args[0] instanceof Wrapper)) {
-                throw Context.reportRuntimeError(
-                        String.format("Expected Context as first argument, got %s", args[0].getClass())
-                );
-            }
-
-            final Object o = ((Wrapper)args[0]).unwrap();
+            final Object o = args[0];
             if (!(o instanceof android.content.Context)) {
                 throw Context.reportRuntimeError(
                         String.format("Expected Context as first argument, got %s", o.getClass())
