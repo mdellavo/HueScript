@@ -1,7 +1,9 @@
-var TAG = 'hue.js';
 
-load('libs/net.js');
-load('libs/util.js');
+var Log = require("./log").Log;
+var Util = require("./util").Util;
+var Http = require("./http").Http;
+
+var TAG = 'hue.js';
 
 var Hue = {
   PORTAL_URL: "https://www.meethue.com/api/nupnp",
@@ -17,7 +19,7 @@ var Hue = {
   },
 
   discoverBridges: function(context, callback) {
-    Net.getJson(context, Hue.PORTAL_URL, callback);
+    Http.getJson(context, Hue.PORTAL_URL, callback);
   },
 
   createUser: function(context, bridge, deviceType, username, callback, errorCallback) {
@@ -26,18 +28,19 @@ var Hue = {
     if (username)
       data['username'] = username;
 
-    Net.postJson(context, Hue.endpoint(bridge, "api"), data, callback, errorCallback);
+    Http.postJson(context, Hue.endpoint(bridge, "api"), data, callback, errorCallback);
   },
 
   getLights: function(context, bridge, username, callback, errorCallback) {
-    Net.getJson(context, Hue.authEndpoint(bridge, username, "lights"), callback, errorCallback);
+    Http.getJson(context, Hue.authEndpoint(bridge, username, "lights"), callback, errorCallback);
   },
 
   setLightState: function(context, bridge, username, lightId, state, callback, errorCallback) {
-    Net.putJson(context, Hue.authEndpoint(bridge, username, "lights/" + lightId + "/state"), state, callback, errorCallback);
+    Http.putJson(context, Hue.authEndpoint(bridge, username, "lights/" + lightId + "/state"), state, callback, errorCallback);
   }
 
 };
+exports.Hue = Hue;
 
 function Session(bridge, username) {
   this.bridge = bridge;
@@ -82,7 +85,7 @@ Session.connect = function(context, bridge, username, deviceType, callback, erro
     }
 
     function checkUser(o) {
-      if (UtilisArray(o) && o[0].error && o[0].error.type == 101) {
+      if (Util.isArray(o) && o[0].error && o[0].error.type == 101) {
         alert(context, "Please press link button!!!");
         Util.sleep(5 * 1000)
         createUser();
@@ -116,9 +119,12 @@ Session.autoconnect = function(context, username, deviceType, main) {
   }
 
   Log.d(TAG, "discovering bridges...");
+
   Hue.discoverBridges(context, function(bridges) {
     for (var i=0; i<bridges.length; i++) {
       Session.connect(context, bridges[i], username, deviceType, main, error);
     }
   });
 }
+
+exports.Session = Session;

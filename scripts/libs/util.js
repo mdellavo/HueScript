@@ -1,6 +1,8 @@
 var TAG = "util.js";
 
-var Util = {
+var Log = require("./log").Log;
+
+exports.Util = {
   timeit: function(f, msg) {
     var t1 = java.lang.System.currentTimeMillis();
     f();
@@ -14,7 +16,7 @@ var Util = {
     android.widget.Toast.makeText(context, String(message), android.widget.Toast.LENGTH_LONG).show();
   },
   dump: function(tag, msg, o) {
-    Log.d(tag, "%s -> %s", msg, JSON.stringify(o));
+    Log.d(tag, "%s -> %s", msg, JSON.stringify(o, null, 2));
   },
   replace: function(fmt) {
     var params = arguments;

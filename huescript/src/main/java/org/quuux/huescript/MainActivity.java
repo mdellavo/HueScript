@@ -193,11 +193,10 @@ public class MainActivity
                 if (f.isFile() && f.getName().endsWith(".js")) {
                     Log.d(TAG, "loading script %s", f.getAbsolutePath());
 
-                    final Sandbox s = new Sandbox(f.getName());
-                    s.define("context", getContext());
+                    final Sandbox s = new Sandbox(f, new File(mDir, "libs"));
 
                     try {
-                        s.evaluate(f);
+                        s.evaluate();
                         rv.add(s);
                     } catch (Exception e) {
                         Log.e(TAG, "Error loading script: " + f.getPath(), e);

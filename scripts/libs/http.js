@@ -1,6 +1,9 @@
 var TAG = "net.js";
 
-var Net = {
+var Log = require("./log").Log;
+var Util = require("./util").Util;
+
+exports.Http = {
   JSON_CONTENT_TYPE: 'application/json',
 
   getQueue: function(context) {
@@ -20,7 +23,7 @@ var Net = {
     var t1 = java.lang.System.currentTimeMillis();
     function complete() {
       var t2 = java.lang.System.currentTimeMillis();
-      Log.d(TAG, "%s %s took %s", methodNames[method], url, t2-t1);
+      Log.d(TAG, "%s %s took %sms", methodNames[method], url, t2-t1);
     }
 
     var listenerImpl = new com.android.volley.Response.Listener({
@@ -46,43 +49,46 @@ var Net = {
   },
 
   send: function(context, request) {
-    return Net.getQueue(context).add(request);
+    return Http.getQueue(context).add(request);
   },
 
   get: function(context, url, listener, errorListener) {
-    return Net.send(context, Net.request(com.android.volley.Request.Method.GET, url, null, null, listener, errorListener));
+    return Http.send(context, Http.request(com.android.volley.Request.Method.GET, url, null, null, listener, errorListener));
   },
 
   put: function(context, url, contentType, data, listener, errorListener) {
-    return Net.send(context, Net.request(com.android.volley.Request.Method.PUT, url, contentType, data, listener, errorListener));
+    return Http.send(context, Http.request(com.android.volley.Request.Method.PUT, url, contentType, data, listener, errorListener));
   },
   post: function(context, url, contentType, data, listener, errorListener) {
-    return Net.send(context, Net.request(com.android.volley.Request.Method.POST, url, contentType, data, listener, errorListener));
+    return Http.send(context, Http.request(com.android.volley.Request.Method.POST, url, contentType, data, listener, errorListener));
   },
   delete_: function(context, url, contentType, data, listener, errorListener) {
-    return Net.send(context, Net.request(com.android.volley.Request.Method.DELETE, url, contentType, data, listener, errorListener));
+    return Http.send(context, Http.request(com.android.volley.Request.Method.DELETE, url, contentType, data, listener, errorListener));
   },
 
   jsonParser: function(callback) {
     return function(s) {
-      if (callback)
-        return callback(JSON.parse(s));
+      if (callback) {
+        var obj = JSON.parse(s);
+        Util.dump(TAG, 'json', obj);
+        return callback(obj);
+      }
 
       return undefined;
     };
   },
 
   getJson: function(context, url, listener, errorListener){
-    return Net.get(context, url, Net.jsonParser(listener), errorListener);
+    return Http.get(context, url, Http.jsonParser(listener), errorListener);
   },
   postJson: function(context, url, data, listener, errorListener){
-    return Net.post(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
+    return Http.post(context, url, Http.JSON_CONTENT_TYPE, JSON.stringify(data), Http.jsonParser(listener), errorListener);
   },
   putJson: function(context, url, data, listener, errorListener){
-    return Net.put(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
+    return Http.put(context, url, Http.JSON_CONTENT_TYPE, JSON.stringify(data), Http.jsonParser(listener), errorListener);
   },
   deleteJson: function(context, url, data, listener, errorListener){
-    return Net.delete(context, url, Net.JSON_CONTENT_TYPE, data, Net.jsonParser(listener), errorListener);
+    return Http.delete(context, url, Http.JSON_CONTENT_TYPE, JSON.stringify(data), Http.jsonParser(listener), errorListener);
   }
 
 };

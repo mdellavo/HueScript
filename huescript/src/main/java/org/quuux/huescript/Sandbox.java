@@ -1,68 +1,56 @@
 package org.quuux.huescript;
 
-import android.content.res.AssetManager;
-
-import com.android.volley.NetworkResponse;
-import com.android.volley.Request;
-import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.HttpHeaderParser;
-import com.android.volley.toolbox.JsonRequest;
-import com.android.volley.toolbox.StringRequest;
-
-import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextAction;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
-import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.WrapFactory;
-import org.mozilla.javascript.Wrapper;
+import org.mozilla.javascript.commonjs.module.Require;
+import org.mozilla.javascript.tools.shell.Global;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.List;
 
-public class Sandbox  {
+public class Sandbox implements Runnable  {
 
     private static final String TAG = Log.buildTag(Sandbox.class);
-    private final String mName;
 
-    private Scriptable mScope;
-    private NativeObject mScript;
+    private final File mPath;
+    private final File mModulesPath;
 
-    public Sandbox(final String name) {
-        mName = name;
+    private Global mScope = new Global();
+    private Require mRequire;
+    private Scriptable mExports;
+
+    public Sandbox(final File path, final File modulesPath) {
+        mPath = path;
+        mModulesPath = modulesPath;
     }
 
     public String getName() {
-        return mName;
+        final String name = mPath.getName();
+        return name.substring(0, name.length() - 3);
     }
 
     public String getScriptName() {
-        return (String) mScript.get("name");
+        return (String) mExports.get("name", mExports);
     }
 
+
     public String getScriptDescription() {
-        return (String) mScript.get("description");
+        return (String) mExports.get("description", mExports);
     }
 
     public boolean run(final android.content.Context context) {
         try {
-            final Function func = (Function) mScript.get("main");
-
             ContextFactory.getGlobal().call(new ContextAction() {
                 @Override
                 public Object run(final Context cx) {
-                    init(cx);
-                    func.call(cx, mScope, mScope, new Object[]{context});
+                    final Function func = (Function) mExports.get("main", mExports);
+                    func.call(cx, mScope, mScope, new Object[]{ context });
                     return null;
                 }
             });
@@ -74,101 +62,37 @@ public class Sandbox  {
         return true;
     }
 
-    public void define(final String name, final Object value) {
-        ContextFactory.getGlobal().call(new ContextAction() {
-            @Override
-            public Object run(final Context context) {
-                init(context);
-                define(context, name, value);
-                return null;
-            }
-        });
-    }
-
     private void init(final Context context) {
-        if (mScope == null)
-            mScope = context.initStandardObjects();
+        if (mRequire == null) {
+            mScope.initStandardObjects(context, false);
 
-        // NB special android magic
-        context.setOptimizationLevel(-1);
+            final WrapFactory wrapFactory = context.getWrapFactory();
+            wrapFactory.setJavaPrimitiveWrap(false);
 
-        final WrapFactory wrapFactory = context.getWrapFactory();
-        wrapFactory.setJavaPrimitiveWrap(false);
-        define(context, "Log", wrapFactory.wrapJavaClass(context, mScope, Log.class));
+            context.setLanguageVersion(170);
+            context.setOptimizationLevel(-1);
+
+            List<String> paths = Arrays.asList(mPath.getParent(), mModulesPath.getAbsolutePath());
+            mRequire = mScope.installRequire(context, paths, false);
+        }
     }
 
-    private void define(final Context context, final String name, final Object value) {
-        final WrapFactory wrapFactory = context.getWrapFactory();
-        final Object wrapped = wrapFactory.wrap(context, mScope, value, null);
-        mScope.put(name, mScope, wrapped);
-    }
-
-    public void evaluate(final File src) {
+    public void evaluate() {
 
         ContextFactory.getGlobal().call(new ContextAction() {
             @Override
             public Object run(final Context context) {
 
                 init(context);
-
-                define(context, "load", new LoadScript(src));
-
-                final Object o;
-                try {
-                    Log.d(TAG, "start execution...");
-                    o = context.evaluateReader(mScope, new BufferedReader(new FileReader(src)), mName, 0, null);
-                    Log.d(TAG, "execution complete");
-                } catch (IOException e) {
-                    Log.e(TAG, "Error loading script", e);
-                    return false;
-                }
-
-                Log.d(TAG, "script loaded: %s -> %s", o, context.toString(o));
-                if (!(o instanceof Function)) {
-                    Log.e(TAG, "script loading did not result in a function!");
-                    return false;
-                }
-
-                final Function func = (Function) o;
-                mScript = (NativeObject) func.call(context, mScope, mScope, new Object[]{});
-
+                mExports = mRequire.requireMain(context, getName());
                 return null;
             }
         });
     }
 
-    public class LoadScript extends BaseFunction {
-
-        private final File mFile;
-
-        public LoadScript(final File f) {
-            mFile = f;
-        }
-
-        @Override
-        public Object call(final Context cx, final Scriptable scope, final Scriptable thisObj, final Object[] args) {
-
-            if (args.length < 1) {
-                throw Context.reportRuntimeError("Expected String as first argument");
-            }
-
-            
-            if (!(args[0] instanceof CharSequence)) {
-                throw Context.reportRuntimeError(String.format("Expected String as first argument, got %s", args[0].getClass()));
-            }
-
-            final String path = (String) args[0];
-            final File f = new File(mFile.getParentFile(), path);
-
-            Log.d(TAG, "loading %s", path);
-
-            try {
-                cx.evaluateReader(mScope, new BufferedReader(new FileReader(f)), mName, 0, null);
-            } catch (IOException e) {
-                Log.e(TAG, "Error loading script", e);
-            }
-
-            return thisObj;
-        }
+    @Override
+    public void run() {
+        evaluate();
     }
+
 }

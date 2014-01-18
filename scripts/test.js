@@ -1,9 +1,12 @@
 var USERNAME= 'huescript-app';
 var DEVICE_TYPE = 'huescript-app';
 
-load('libs/hue.js');
+var Session = require("util").Session;
 
-function main(context) {
+exports.name = 'Test Script';
+exports.description = 'A simple test script';
+
+exports.main = function(context) {
 
   Session.autoconnect(context, USERNAME, DEVICE_TYPE, function (session) {
 
@@ -21,17 +24,10 @@ function main(context) {
         'bri': 100,
         'hue': (hue + hue_slop) % hue_max,
         'sat': 255,
+        'effect': 'colorloop',
         'transitiontime': 10
       });
 
     });
   });
-}
-
-function() {
-  return {
-   'name': 'Test Script',
-   'description': 'A simple test script',
-   'main': main
- };
-}
+};
