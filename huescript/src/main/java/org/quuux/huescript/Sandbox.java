@@ -60,9 +60,9 @@ public class Sandbox  {
 
             ContextFactory.getGlobal().call(new ContextAction() {
                 @Override
-                public Object run(final Context context) {
-                    init(context);
-                    func.call(context, mScope, mScope, new Object[]{context});
+                public Object run(final Context cx) {
+                    init(cx);
+                    func.call(cx, mScope, mScope, new Object[]{context});
                     return null;
                 }
             });
@@ -152,6 +152,7 @@ public class Sandbox  {
                 throw Context.reportRuntimeError("Expected String as first argument");
             }
 
+            
             if (!(args[0] instanceof CharSequence)) {
                 throw Context.reportRuntimeError(String.format("Expected String as first argument, got %s", args[0].getClass()));
             }

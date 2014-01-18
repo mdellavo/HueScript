@@ -5,12 +5,12 @@ load('libs/hue.js');
 
 function main(context) {
 
-  Session.autoconnect(context, USERNAME, function (session) {
+  Session.autoconnect(context, USERNAME, DEVICE_TYPE, function (session) {
 
     var random = new java.util.Random();
 
     var hue_max = 65535;
-       var hue = random.nextInt(hue_max);
+    var hue = random.nextInt(hue_max);
     var hue_slop = 0;
 
     session.forEachLight(context, function(lightId) {
@@ -18,9 +18,9 @@ function main(context) {
 
       session.setLightState(context, lightId, {
         'on': true,
-        'bri': 50,
+        'bri': 100,
         'hue': (hue + hue_slop) % hue_max,
-           'sat': 255,
+        'sat': 255,
         'transitiontime': 10
       });
 

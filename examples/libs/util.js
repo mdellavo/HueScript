@@ -1,3 +1,5 @@
+var TAG = "util.js";
+
 var Util = {
   timeit: function(f, msg) {
     var t1 = java.lang.System.currentTimeMillis();
@@ -5,7 +7,7 @@ var Util = {
     var t2 = java.lang.System.currentTimeMillis();
     Log.d(TAG, msg, t2-t1);
   },
-  isArray: function() {
+  isArray: function(o) {
     return Object.prototype.toString.call(o) === '[object Array]';
   },
   alert: function (context, message) {

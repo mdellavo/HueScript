@@ -71,14 +71,14 @@ Session.prototype['setLightState'] = function(context, lightId, state, callback,
   Hue.setLightState(context, this.bridge, this.username, lightId, state, callback, errorCallback);
 }
 
-Session.connect = function(context, bridge, username, callback, errorCallback) {
+Session.connect = function(context, bridge, username, deviceType, callback, errorCallback) {
 
     function connected() {
       callback(new Session(bridge, username));
     }
 
     function createUser() {
-        Hue.createUser(context, bridge, DEVICE_TYPE, username, checkUser, checkUserError);
+        Hue.createUser(context, bridge, deviceType, username, checkUser, checkUserError);
     }
 
     function checkUser(o) {
@@ -110,7 +110,7 @@ Session.connect = function(context, bridge, username, callback, errorCallback) {
     Hue.getLights(context, bridge, username, checkAuth, checkAuthError);
 }
 
-Session.autoconnect = function(context, username, main) {
+Session.autoconnect = function(context, username, deviceType, main) {
   function error(e) {
     Log.e(TAG, "error", e);
   }
@@ -118,7 +118,7 @@ Session.autoconnect = function(context, username, main) {
   Log.d(TAG, "discovering bridges...");
   Hue.discoverBridges(context, function(bridges) {
     for (var i=0; i<bridges.length; i++) {
-      Session.connect(context, bridges[i], username, main, error);
+      Session.connect(context, bridges[i], username, deviceType, main, error);
     }
   });
 }

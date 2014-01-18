@@ -1,8 +1,11 @@
+var TAG = "net.js";
+
 var Net = {
   JSON_CONTENT_TYPE: 'application/json',
 
   getQueue: function(context) {
-    return org.quuux.hueScript.HueScriptVolley.getRequestQueue(context)
+    var rv = org.quuux.huescript.HueScriptVolley.getRequestQueue;
+    return rv(context);
   },
 
   request: function(method, url, contentType, data, listener, errorListener) {
@@ -17,7 +20,7 @@ var Net = {
     var t1 = java.lang.System.currentTimeMillis();
     function complete() {
       var t2 = java.lang.System.currentTimeMillis();
-      Log.d(TAG, "%s %s took %0.2ms", methodNames[method], url, t2-t1);
+      Log.d(TAG, "%s %s took %s", methodNames[method], url, t2-t1);
     }
 
     var listenerImpl = new com.android.volley.Response.Listener({
@@ -39,16 +42,7 @@ var Net = {
       }
     });
 
-    // var request = new JavaAdapter(com.android.volley.toolbox.StringRequest, {
-    //   getBodyContentType: function() {
-    //     return contentType ? contentType : super.getBodyContentType();
-    //   },
-    //   getBody: function() {
-    //     return data ? data : super.getBody();
-    //   }
-    // });
-
-    return new request(method, url, listenerImpl, errorImpl);
+    return new org.quuux.huescript.StringRequest(method, url, contentType, data, listenerImpl, errorImpl);
   },
 
   send: function(context, request) {
@@ -79,16 +73,16 @@ var Net = {
   },
 
   getJson: function(context, url, listener, errorListener){
-    return Net.get(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
+    return Net.get(context, url, Net.jsonParser(listener), errorListener);
   },
   postJson: function(context, url, data, listener, errorListener){
-    return Net.get(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
+    return Net.post(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
   },
   putJson: function(context, url, data, listener, errorListener){
-    return Net.get(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
+    return Net.put(context, url, Net.JSON_CONTENT_TYPE, Net.jsonParser(listener), errorListener);
   },
   deleteJson: function(context, url, data, listener, errorListener){
-    return Net.get(context, url, Net.JSON_CONTENT_TYPE, data, Net.jsonParser(listener), errorListener);
+    return Net.delete(context, url, Net.JSON_CONTENT_TYPE, data, Net.jsonParser(listener), errorListener);
   }
 
 };
