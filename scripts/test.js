@@ -1,7 +1,7 @@
 var USERNAME= 'huescript-app';
 var DEVICE_TYPE = 'huescript-app';
 
-var Session = require("util").Session;
+var Session = require("hue").Session;
 
 exports.name = 'Test Script';
 exports.description = 'A simple test script';

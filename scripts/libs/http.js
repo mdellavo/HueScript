@@ -3,7 +3,7 @@ var TAG = "net.js";
 var Log = require("./log").Log;
 var Util = require("./util").Util;
 
-exports.Http = {
+var Http = {
   JSON_CONTENT_TYPE: 'application/json',
 
   getQueue: function(context) {
@@ -92,3 +92,4 @@ exports.Http = {
   }
 
 };
+exports.Http = Http;
