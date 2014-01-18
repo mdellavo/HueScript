@@ -108,7 +108,6 @@ public class MainActivity
 
     @Override
     public void onLoadFinished(final android.support.v4.content.Loader<List<Sandbox>> listLoader, final List<Sandbox> sandboxes) {
-        mAdapter.release();
         for (final Sandbox s : sandboxes)
             mAdapter.add(s);
         mAdapter.notifyDataSetChanged();
@@ -116,7 +115,6 @@ public class MainActivity
 
     @Override
     public void onLoaderReset(final android.support.v4.content.Loader<List<Sandbox>> listLoader) {
-        mAdapter.release();
         mAdapter.notifyDataSetChanged();
     }
 
@@ -173,13 +171,6 @@ public class MainActivity
             holder.name.setText(item.getName());
             holder.scriptName.setText(item.getScriptName());
             holder.scriptDescription.setText(item.getScriptDescription());
-        }
-
-        public void release() {
-            for (int i=0; i<getCount(); i++)
-                getItem(i).release();
-
-            clear();
         }
     }
 

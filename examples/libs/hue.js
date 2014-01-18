@@ -1,56 +1,7 @@
 var TAG = 'hue.js';
 
-function isArray(o) {
-  return Object.prototype.toString.call(o) === '[object Array]';
-}
-
-function alert(context, message) {
-    android.widget.Toast.makeText(context, String(message), android.widget.Toast.LENGTH_LONG).show();
-}
-
-function dump(tag, msg, o) {
-  Log.d(tag, "%s -> %s", msg, JSON.stringify(o));
-}
-
-function replace(fmt) {
-    var params = arguments;
-
-    function replacer(str, position, offset, s) {
-        return String(params[Number(position)+1] || '');
-    }
-
-    return fmt.replace(/{(\d+)}/g, replacer);
-}
-
-function getJson(context, url, callback) {
-  Log.d(TAG, "GET %s", url);
-  GET(context, url, function(s) {
-    if (callback)
-      callback(JSON.parse(s));
-  });
-}
-
-function postJson(context, url, params, callback) {
-  var data = JSON.stringify(params);
-  Log.d(TAG, "POST %s : %s", url, data);
-  POST(context, url, data, function(s) {
-    if (callback)
-      callback(JSON.parse(s));
-  });
-}
-
-function putJson(context, url, params, callback) {
-  var data = JSON.stringify(params);
-  Log.d(TAG, "PUT %s : %s", url, data);
-  PUT(context, url, data, function(s) {
-    if (callback)
-      callback(JSON.parse(s));
-  });
-}
-
-function sleep(millis) {
-  java.lang.Thread.sleep(millis);
-}
+load('libs/net.js');
+load('libs/util.js');
 
 var Hue = {
   PORTAL_URL: "https://www.meethue.com/api/nupnp",
@@ -58,7 +9,7 @@ var Hue = {
   ENDPOINT_URL: "http://{0}/{1}",
 
   endpoint: function(bridge, path) {
-    return replace(Hue.ENDPOINT_URL, bridge.internalipaddress, path);
+    return Util.replace(Hue.ENDPOINT_URL, bridge.internalipaddress, path);
   },
 
   authEndpoint: function(bridge, username, path) {
@@ -66,7 +17,7 @@ var Hue = {
   },
 
   discoverBridges: function(context, callback) {
-    getJson(context, Hue.PORTAL_URL, callback);
+    Net.getJson(context, Hue.PORTAL_URL, callback);
   },
 
   createUser: function(context, bridge, deviceType, username, callback, errorCallback) {
@@ -75,15 +26,15 @@ var Hue = {
     if (username)
       data['username'] = username;
 
-    postJson(context, Hue.endpoint(bridge, "api"), data, callback, errorCallback);
+    Net.postJson(context, Hue.endpoint(bridge, "api"), data, callback, errorCallback);
   },
 
   getLights: function(context, bridge, username, callback, errorCallback) {
-    getJson(context, Hue.authEndpoint(bridge, username, "lights"), callback, errorCallback);
+    Net.getJson(context, Hue.authEndpoint(bridge, username, "lights"), callback, errorCallback);
   },
 
   setLightState: function(context, bridge, username, lightId, state, callback, errorCallback) {
-    putJson(context, Hue.authEndpoint(bridge, username, "lights/" + lightId + "/state"), state, callback, errorCallback);
+    Net.putJson(context, Hue.authEndpoint(bridge, username, "lights/" + lightId + "/state"), state, callback, errorCallback);
   }
 
 };
@@ -120,7 +71,7 @@ Session.prototype['setLightState'] = function(context, lightId, state, callback,
   Hue.setLightState(context, this.bridge, this.username, lightId, state, callback, errorCallback);
 }
 
-function connect(context, bridge, username, callback, errorCallback) {
+Session.connect = function(context, bridge, username, callback, errorCallback) {
 
     function connected() {
       callback(new Session(bridge, username));
@@ -131,9 +82,9 @@ function connect(context, bridge, username, callback, errorCallback) {
     }
 
     function checkUser(o) {
-      if (isArray(o) && o[0].error && o[0].error.type == 101) {
+      if (UtilisArray(o) && o[0].error && o[0].error.type == 101) {
         alert(context, "Please press link button!!!");
-        sleep(5 * 1000)
+        Util.sleep(5 * 1000)
         createUser();
       } else {
         connected();
@@ -145,7 +96,7 @@ function connect(context, bridge, username, callback, errorCallback) {
     }
 
     function checkAuth(o) {
-      if (isArray(o) && o[0].error && o[0].error.type == 1) {
+      if (Util.isArray(o) && o[0].error && o[0].error.type == 1) {
         createUser();
       } else {
         connected();
@@ -159,7 +110,7 @@ function connect(context, bridge, username, callback, errorCallback) {
     Hue.getLights(context, bridge, username, checkAuth, checkAuthError);
 }
 
-function autoconnect(context, username, main) {
+Session.autoconnect = function(context, username, main) {
   function error(e) {
     Log.e(TAG, "error", e);
   }
@@ -167,7 +118,7 @@ function autoconnect(context, username, main) {
   Log.d(TAG, "discovering bridges...");
   Hue.discoverBridges(context, function(bridges) {
     for (var i=0; i<bridges.length; i++) {
-      connect(context, bridges[i], username, main, error);
+      Session.connect(context, bridges[i], username, main, error);
     }
   });
 }
