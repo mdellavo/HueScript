@@ -3,8 +3,9 @@ var DEVICE_TYPE = 'huescript-app';
 
 var Session = require("hue").Session;
 
-exports.name = 'Test Script';
-exports.description = 'A simple test script';
+exports.name = 'Color Loop';
+exports.description = 'A wobbly loop through colors';
+exports.icon = 'http://quuux.org/color-loop.png'
 
 exports.main = function(context) {
 
@@ -16,10 +17,10 @@ exports.main = function(context) {
     var hue = random.nextInt(hue_max);
     var hue_slop = 0;
 
-    session.forEachLight(context, function(lightId) {
+    session.forEachLight(function(lightId) {
       hue_slop += random.nextInt(hue_max/10)
 
-      session.setLightState(context, lightId, {
+      session.setLightState(lightId, {
         'on': true,
         'bri': 100,
         'hue': (hue + hue_slop) % hue_max,

@@ -30,8 +30,13 @@ var Http = {
       onResponse: function(s) {
         complete();
 
-        if (listener)
-          listener(s);
+        if (listener) {
+          Handler.post(new java.lang.Runnable({
+            run: function() {
+              listener(s);
+            }
+          }));
+        }
       }
     });
 
@@ -40,8 +45,13 @@ var Http = {
         Log.e("error requesting %s", e, url);
         complete();
 
-        if (errorListener)
-          errorListener(e);
+        if (errorListener) {
+          Handler.post(new java.lang.Runnable({
+            run: function() {
+              errorListener(e);
+            }
+          }));
+        }
       }
     });
 

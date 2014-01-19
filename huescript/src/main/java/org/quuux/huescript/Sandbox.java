@@ -1,5 +1,8 @@
 package org.quuux.huescript;
 
+import android.os.Handler;
+import android.os.Looper;
+
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextAction;
 import org.mozilla.javascript.ContextFactory;
@@ -14,20 +17,32 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
-public class Sandbox implements Runnable  {
+public class Sandbox {
 
     private static final String TAG = Log.buildTag(Sandbox.class);
 
     private final File mPath;
     private final File mModulesPath;
-
     private Global mScope = new Global();
     private Require mRequire;
     private Scriptable mExports;
+    private Handler mHandler;
+
+    private Thread mWorkerThread;
+    private Runnable mWorker = new Runnable() {
+        @Override
+        public void run() {
+            Looper.prepare();
+            mHandler = new Handler();
+            Looper.loop();
+        }
+    };
 
     public Sandbox(final File path, final File modulesPath) {
         mPath = path;
         mModulesPath = modulesPath;
+        mWorkerThread = new Thread(mWorker);
+        mWorkerThread.start();
     }
 
     public String getName() {
@@ -39,60 +54,79 @@ public class Sandbox implements Runnable  {
         return (String) mExports.get("name", mExports);
     }
 
-
     public String getScriptDescription() {
         return (String) mExports.get("description", mExports);
     }
 
-    public boolean run(final android.content.Context context) {
-        try {
-            ContextFactory.getGlobal().call(new ContextAction() {
-                @Override
-                public Object run(final Context cx) {
-                    final Function func = (Function) mExports.get("main", mExports);
-                    func.call(cx, mScope, mScope, new Object[]{ context });
-                    return null;
-                }
-            });
-        } catch (Exception e) {
-            Log.e(TAG, "error running script", e);
-            return false;
-        }
+    private void postWithContext(final ContextAction runnable) {
+        mHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                ContextFactory.getGlobal().call(new ContextAction() {
+                    @Override
+                    public Object run(final Context context) {
+                        init(context);
+                        return runnable.run(context);
+                    }
+                });
+            }
+        });
+    }
 
-        return true;
+
+    public void callExport(final String name, final Object... args) {
+
+        postWithContext(new ContextAction() {
+            @Override
+            public Object run(final Context context) {
+                final Function func = (Function) mExports.get(name, mExports);
+
+                try {
+                    func.call(context, mScope, mScope, args);
+                } catch(Exception e) {
+                    Log.e(TAG, "error calling export function %s", e, name);
+                }
+
+                return null;
+            }
+        });
+
     }
 
     private void init(final Context context) {
+        Log.d(TAG, "initing sandbox");
+
         if (mRequire == null) {
             mScope.initStandardObjects(context, false);
 
-            final WrapFactory wrapFactory = context.getWrapFactory();
-            wrapFactory.setJavaPrimitiveWrap(false);
-
-            context.setLanguageVersion(170);
-            context.setOptimizationLevel(-1);
-
             List<String> paths = Arrays.asList(mPath.getParent(), mModulesPath.getAbsolutePath());
             mRequire = mScope.installRequire(context, paths, false);
+
+            mScope.put("Handler", mScope, mHandler);
         }
+
+        final WrapFactory wrapFactory = context.getWrapFactory();
+        wrapFactory.setJavaPrimitiveWrap(false);
+
+        context.setLanguageVersion(170);
+        context.setOptimizationLevel(-1);
     }
 
-    public void evaluate() {
+    public void require(final String name) {
+        Log.d(TAG, "requiring %s", name);
 
         ContextFactory.getGlobal().call(new ContextAction() {
             @Override
             public Object run(final Context context) {
-
                 init(context);
-                mExports = mRequire.requireMain(context, getName());
+                mExports = mRequire.requireMain(context, name);
                 return null;
             }
         });
     }
 
-    @Override
-    public void run() {
-        evaluate();
+    public void require() {
+        require(getName());
     }
 
 }

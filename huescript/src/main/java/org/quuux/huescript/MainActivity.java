@@ -124,7 +124,7 @@ public class MainActivity
         new Thread(new Runnable() {
             @Override
             public void run() {
-                sandbox.run(MainActivity.this);
+                sandbox.callExport("main", MainActivity.this);
             }
         }).start();
     }
@@ -192,16 +192,9 @@ public class MainActivity
             for (final File f : mDir.listFiles()) {
                 if (f.isFile() && f.getName().endsWith(".js")) {
                     Log.d(TAG, "loading script %s", f.getAbsolutePath());
-
                     final Sandbox s = new Sandbox(f, new File(mDir, "libs"));
-
-                    try {
-                        s.evaluate();
-                        rv.add(s);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error loading script: " + f.getPath(), e);
-                    }
-
+                    s.require();
+                    rv.add(s);
                 }
             }
 

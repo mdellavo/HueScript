@@ -42,42 +42,47 @@ var Hue = {
 };
 exports.Hue = Hue;
 
-function Session(bridge, username) {
+function Session(context, bridge, username, deviceType) {
+  this.context = context;
   this.bridge = bridge;
   this.username = username;
+  this.deviceType = deviceType;
   this.lights = null;
+  this.trace = false;
+  this.execute = true;
 }
 
-Session.prototype['getLights'] = function(context, callback, errorCallback) {
-  if (this.lights != null) {
-    callback(this.lights);
-    return;
-  }
+Session.prototype['setTrace'] = function(state) {
+  this.trace = state;
+}
 
-  var this_ = this;
-  function cachingCallback(lights) {
-    this_.lights = lights;
-    callback(lights);
-  }
+Session.prototype['setExecute'] = function(state) {
+  this.execute = state;
+}
 
-  Hue.getLights(context, this.bridge, this.username, cachingCallback, errorCallback);
+Session.prototype['getLights'] = function(callback, errorCallback) {
+  Hue.getLights(this.context, this.bridge, this.username, callback, errorCallback);
 };
 
-Session.prototype['forEachLight'] = function(context, callback) {
-  this.getLights(context, function(lights) {
+Session.prototype['forEachLight'] = function(callback) {
+  this.getLights(function(lights) {
     for (var id in lights)
       callback(id);
   });
 };
 
-Session.prototype['setLightState'] = function(context, lightId, state, callback, errorCallback) {
-  Hue.setLightState(context, this.bridge, this.username, lightId, state, callback, errorCallback);
+Session.prototype['setLightState'] = function(lightId, state, callback, errorCallback) {
+  if (this.trace)
+    Util.dump(TAG, "setting light " + lightId + " state", state);
+
+  if (this.execute)
+    Hue.setLightState(this.context, this.bridge, this.username, lightId, state, callback, errorCallback);
 }
 
 Session.connect = function(context, bridge, username, deviceType, callback, errorCallback) {
 
     function connected() {
-      callback(new Session(bridge, username));
+      callback(new Session(context, bridge, username, deviceType));
     }
 
     function createUser() {
