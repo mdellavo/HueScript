@@ -103,6 +103,7 @@ public class Sandbox {
             mRequire = mScope.installRequire(context, paths, false);
 
             mScope.put("Handler", mScope, mHandler);
+            mScope.put("__file__", mScope, mPath);
         }
 
         final WrapFactory wrapFactory = context.getWrapFactory();
