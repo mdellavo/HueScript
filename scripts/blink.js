@@ -58,7 +58,7 @@ function repeatFor(func, duration, delay) {
     return Math.max(duration - lapsed, delay);
   }
 
-  repeat(func, delay);
+  repeat(repeater, delay);
 }
 
 

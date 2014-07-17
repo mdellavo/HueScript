@@ -1,3 +1,4 @@
+
 var TAG = "net.js";
 
 var Log = require("./log").Log;
@@ -80,7 +81,6 @@ var Http = {
     return function(s) {
       if (callback) {
         var obj = JSON.parse(s);
-        Util.dump(TAG, 'json', obj);
         return callback(obj);
       }
 

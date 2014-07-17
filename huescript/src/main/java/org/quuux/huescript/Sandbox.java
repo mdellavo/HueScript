@@ -34,7 +34,11 @@ public class Sandbox {
         public void run() {
             Looper.prepare();
             mHandler = new Handler();
-            Looper.loop();
+            try {
+                Looper.loop();
+            } catch(Exception e) {
+                Log.e(TAG, "worker error", e);
+            }
         }
     };
 
@@ -101,10 +105,10 @@ public class Sandbox {
 
             List<String> paths = Arrays.asList(mPath.getParent(), mModulesPath.getAbsolutePath());
             mRequire = mScope.installRequire(context, paths, false);
-
-            mScope.put("Handler", mScope, mHandler);
-            mScope.put("__file__", mScope, mPath);
         }
+
+        mScope.put("Handler", mScope, mHandler);
+        mScope.put("__file__", mScope, mPath);
 
         final WrapFactory wrapFactory = context.getWrapFactory();
         wrapFactory.setJavaPrimitiveWrap(false);

@@ -2,6 +2,10 @@ var USERNAME= 'huescript-app';
 var DEVICE_TYPE = 'huescript-app';
 
 var Session = require("hue").Session;
+var Log = require("log").Log;
+var Util = require("util").Util;
+
+var TAG = __file__.getName();
 
 exports.name = 'Color Loop';
 exports.description = 'A wobbly loop through colors';
@@ -11,24 +15,57 @@ exports.main = function(context) {
 
   Session.autoconnect(context, USERNAME, DEVICE_TYPE, function (session) {
 
+    allOff(session);
+    Util.sleep(5000);
+
     var random = new java.util.Random();
 
     var hue_max = 65535;
-    var hue = random.nextInt(hue_max);
     var hue_slop = 0;
 
+    var hue = random.nextInt(hue_max);
+
     session.forEachLight(function(lightId) {
-      hue_slop += random.nextInt(hue_max/10)
+      hue_slop += random.nextInt(hue_max / 10);
 
       session.setLightState(lightId, {
         'on': true,
-        'bri': 100,
-        'hue': (hue + hue_slop) % hue_max,
+        'bri': random.nextInt(100),
+        'hue': Math.round((hue + hue_slop) % hue_max),
         'sat': 255,
         'effect': 'colorloop',
-        'transitiontime': 10
-      });
+        'transitiontime': random.nextInt(100)
+      }, function(json) {
+           Util.dump(TAG, "set light state json", json);
+         });
+
+      Util.sleep(random.nextInt(3000));
 
     });
   });
 };
+
+
+function toggle(session, lightId, state) {
+  session.setLightState(lightId, {
+    'on': state,
+    'effect': 'none',
+    'bri': 100,
+    'sat': 255,
+    'transitiontime': 1
+  });
+}
+
+function off(session, lightId) {
+  toggle(session, lightId, false);
+}
+
+function on(session, lightId) {
+  toggle(session, lightId, true);
+}
+
+function allOff(session) {
+  session.forEachLight(function(lightId) {
+    off(session, lightId);
+  });
+}

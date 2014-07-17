@@ -5,12 +5,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.os.Environment;
 import android.os.FileObserver;
+import android.os.IBinder;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.AsyncTaskLoader;
 import android.support.v4.content.Loader;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.ActionBar;
 import android.support.v4.app.Fragment;
@@ -29,17 +36,20 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.Button;
+import android.widget.GridView;
 import android.widget.ListView;
 import android.widget.TextView;
 
 public class MainActivity
         extends ActionBarActivity
-        implements LoaderManager.LoaderCallbacks<List<Sandbox>>, AdapterView.OnItemClickListener {
+        implements AdapterView.OnItemClickListener {
 
     private static final String TAG = Log.buildTag(MainActivity.class);
-    private ListView mListView;
+
+    private GridView mListView;
     private Adapter mAdapter;
-    private FileObserver mObserver;
+    private boolean mBound;
+    private SandboxService mService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,51 +59,54 @@ public class MainActivity
 
         mAdapter = new Adapter(this);
 
-        mListView = (ListView) findViewById(R.id.list);
+        mListView = (GridView) findViewById(R.id.list);
         mListView.setAdapter(mAdapter);
         mListView.setOnItemClickListener(this);
-
-        getSupportLoaderManager().initLoader(0, null, this).forceLoad();
-
-        final int mask = FileObserver.CREATE
-                | FileObserver.DELETE
-                | FileObserver.MODIFY
-                | FileObserver.MOVED_FROM
-                | FileObserver.MOVED_TO;
-
-        mObserver = new FileObserver(getScriptsDir().getAbsolutePath(), mask) {
-            @Override
-            public void onEvent(final int event, final String path) {
-                if (path != null) {
-                    Log.d(TAG, "file changed: %s", path);
-                    getSupportLoaderManager().restartLoader(0, null, MainActivity.this).forceLoad();
-                }
-            }
-        };
-
-        mObserver.startWatching();
-
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        mObserver.stopWatching();
+    protected void onStart() {
+        super.onStart();
+        // Bind to LocalService
+        Intent intent = new Intent(this, SandboxService.class);
+        startService(intent);
+        bindService(intent, mConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Unbind from the service
+        if (mBound) {
+            unbindService(mConnection);
+            mBound = false;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mReciever);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(SandboxService.ACTION_SCRIPTS_UPDATED);
+        LocalBroadcastManager.getInstance(this).registerReceiver(mReciever, filter);
+        if (mBound)
+            loadScripts();
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
         if (id == R.id.action_settings) {
             return true;
@@ -102,39 +115,20 @@ public class MainActivity
     }
 
     @Override
-    public android.support.v4.content.Loader<List<Sandbox>> onCreateLoader(final int i, final Bundle bundle) {
-        return new ScriptLoader(this, getScriptsDir());
-    }
-
-    @Override
-    public void onLoadFinished(final android.support.v4.content.Loader<List<Sandbox>> listLoader, final List<Sandbox> sandboxes) {
-        for (final Sandbox s : sandboxes)
-            mAdapter.add(s);
-        mAdapter.notifyDataSetChanged();
-    }
-
-    @Override
-    public void onLoaderReset(final android.support.v4.content.Loader<List<Sandbox>> listLoader) {
-        mAdapter.notifyDataSetChanged();
-    }
-
-    @Override
     public void onItemClick(final AdapterView<?> parent, final View view, final int position, final long id) {
-        final Sandbox sandbox = mAdapter.getItem(position);
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                sandbox.callExport("main", MainActivity.this);
-            }
-        }).start();
+        Sandbox script = mAdapter.getItem(position);
+        Log.d(TAG, "run script %s", script.getName());
     }
 
-    private File getScriptsDir() {
-        return new File(Environment.getExternalStorageDirectory(), "HueScripts");
+    private void loadScripts() {
+        mAdapter.clear();
+        for (Sandbox sandbox : mService.getScripts()) {
+            Log.d(TAG, "loaded script %s", sandbox.getName());
+            mAdapter.add(sandbox);
+        }
+        mAdapter.notifyDataSetChanged();
     }
-
     static class Holder {
-        TextView name;
         TextView scriptName;
         TextView scriptDescription;
     }
@@ -157,7 +151,6 @@ public class MainActivity
             final View v = inflater.inflate(R.layout.list_item, parent, false);
 
             final Holder holder = new Holder();
-            holder.name = (TextView)v.findViewById(R.id.name);
             holder.scriptName = (TextView)v.findViewById(R.id.script_name);
             holder.scriptDescription = (TextView)v.findViewById(R.id.script_description);
 
@@ -168,38 +161,37 @@ public class MainActivity
 
         private void bindView(final View v, final Sandbox item) {
             final Holder holder = (Holder) v.getTag();
-            holder.name.setText(item.getName());
             holder.scriptName.setText(item.getScriptName());
             holder.scriptDescription.setText(item.getScriptDescription());
         }
     }
 
-    static class ScriptLoader extends AsyncTaskLoader<List<Sandbox>> {
-        private static final String TAG = "Scriptloader";
-        private final File mDir;
+    private ServiceConnection mConnection = new ServiceConnection() {
 
-        public ScriptLoader(final Context context, final File dir) {
-            super(context);
-            mDir = dir;
+        @Override
+        public void onServiceConnected(ComponentName className,
+                                       IBinder service) {
+            // We've bound to LocalService, cast the IBinder and get LocalService instance
+            SandboxService.LocalBinder binder = (SandboxService.LocalBinder) service;
+            mService = binder.getService();
+            mBound = true;
+
+            loadScripts();
         }
 
         @Override
-        public List<Sandbox> loadInBackground() {
-            final List<Sandbox> rv = new ArrayList<Sandbox>();
-
-            Log.d(TAG, "loading scripts from %s", mDir.getAbsolutePath());
-
-            for (final File f : mDir.listFiles()) {
-                if (f.isFile() && f.getName().endsWith(".js")) {
-                    Log.d(TAG, "loading script %s", f.getAbsolutePath());
-                    final Sandbox s = new Sandbox(f, new File(mDir, "libs"));
-                    s.require();
-                    rv.add(s);
-                }
-            }
-
-            return rv;
+        public void onServiceDisconnected(ComponentName arg0) {
+            mBound = false;
         }
-    }
+    };
+
+    private BroadcastReceiver mReciever = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, final Intent intent) {
+            Log.d(TAG, "broadcast: %s", intent);
+            if (SandboxService.ACTION_SCRIPTS_UPDATED.equals(intent.getAction()))
+                loadScripts();
+        }
+    };
 
 }
