@@ -42,16 +42,15 @@ public class Sandbox {
         }
     };
 
-    public Sandbox(final File path, final File modulesPath) {
+    public Sandbox(final File path) {
         mPath = path;
-        mModulesPath = modulesPath;
+        mModulesPath = new File(path, "libs");
         mWorkerThread = new Thread(mWorker);
         mWorkerThread.start();
     }
 
     public String getName() {
-        final String name = mPath.getName();
-        return name.substring(0, name.length() - 3);
+        return mPath.getName();
     }
 
     public String getScriptName() {
@@ -103,12 +102,12 @@ public class Sandbox {
         if (mRequire == null) {
             mScope.initStandardObjects(context, false);
 
-            List<String> paths = Arrays.asList(mPath.getParent(), mModulesPath.getAbsolutePath());
+            List<String> paths = Arrays.asList(mPath.getAbsolutePath(), mModulesPath.getAbsolutePath());
             mRequire = mScope.installRequire(context, paths, false);
         }
 
         mScope.put("Handler", mScope, mHandler);
-        mScope.put("__file__", mScope, mPath);
+        mScope.put("__file__", mScope, new File(mPath, "main.js"));
 
         final WrapFactory wrapFactory = context.getWrapFactory();
         wrapFactory.setJavaPrimitiveWrap(false);
@@ -131,7 +130,7 @@ public class Sandbox {
     }
 
     public void require() {
-        require(getName());
+        require("main");
     }
 
 }

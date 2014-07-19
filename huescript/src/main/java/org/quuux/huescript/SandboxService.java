@@ -74,12 +74,16 @@ public class SandboxService extends Service {
         return mScripts;
     }
 
+    public void runSandbox(final Sandbox sandbox) {
+
+    }
+
     private boolean doScanDir(final File dir) {
         Log.d(TAG, "loading scripts from %s", dir.getAbsolutePath());
 
         boolean added = false;
         for (final File f : dir.listFiles()) {
-            if (f.isFile() && f.getName().endsWith(".js")) {
+            if (f.isDirectory() && new File(f, "main.js").exists()) {
                 loadScript(f);
                 added = true;
             }
@@ -90,7 +94,7 @@ public class SandboxService extends Service {
 
     private Sandbox loadScript(final File path) {
         Log.d(TAG, "loading script %s", path.getAbsolutePath());
-        final Sandbox sandbox = new Sandbox(path, new File(path.getParentFile(), "libs"));
+        final Sandbox sandbox = new Sandbox(path);
         sandbox.require();
         mScripts.add(sandbox);
         return sandbox;
@@ -129,6 +133,7 @@ public class SandboxService extends Service {
                     break;
 
                 case COMMAND_SCRIPT_CHANGED:
+
                     break;
             }
 
@@ -149,12 +154,36 @@ public class SandboxService extends Service {
 
         @Override
         public void onEvent(final int event, final String path) {
-            if (path != null) {
-                Log.d(TAG, "file changed: %s", path);
-                mHandler.sendMessage(
-                        mHandler.obtainMessage(COMMAND_SCRIPT_CHANGED, event, 0, path)
-                );
+            if (path == null)
+                return;
+
+            Log.d(TAG, "path %s", path);
+
+            final File file = new File(SCRIPTS_DIR, path);
+            if (!(file.isDirectory() && new File(file, "main.js").exists()))
+                return;
+
+            Log.d(TAG, "file changed %s", file);
+
+            switch (event) {
+
+                case FileObserver.CREATE:
+                case FileObserver.MODIFY:
+                case FileObserver.MOVED_TO:
+                    break;
+
+                case FileObserver.DELETE:
+                case FileObserver.MOVED_FROM:
+                    break;
+
             }
+
+//            if (path != null && path.endsWith(".js")) {
+//                Log.d(TAG, "file changed: %s", path);
+//                mHandler.sendMessage(
+//                        mHandler.obtainMessage(COMMAND_SCRIPT_CHANGED, event, 0, path)
+//                );
+//            }
         }
     }
 

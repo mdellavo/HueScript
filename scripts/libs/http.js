@@ -43,7 +43,7 @@ var Http = {
 
     var errorImpl = new com.android.volley.Response.ErrorListener({
       onErrorResponse: function(e) {
-        Log.e("error requesting %s", e, url);
+        Log.e(TAG, "error requesting %s", e, url);
         complete();
 
         if (errorListener) {
@@ -102,4 +102,5 @@ var Http = {
   }
 
 };
+
 exports.Http = Http;

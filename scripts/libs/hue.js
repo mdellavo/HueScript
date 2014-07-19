@@ -11,7 +11,7 @@ var Hue = {
   ENDPOINT_URL: "http://{0}/{1}",
 
   endpoint: function(bridge, path) {
-    return Util.replace(Hue.ENDPOINT_URL, bridge.internalipaddress, path);
+    return Util.replace(Hue.ENDPOINT_URL, bridge, path);
   },
 
   authEndpoint: function(bridge, username, path) {
@@ -91,7 +91,7 @@ Session.connect = function(context, bridge, username, deviceType, callback, erro
 
     function checkUser(o) {
       if (Util.isArray(o) && o[0].error && o[0].error.type == 101) {
-        alert(context, "Please press link button!!!");
+        Util.alert(context, "Please press link button!!!");
         Util.sleep(5 * 1000)
         createUser();
       } else {
@@ -112,7 +112,7 @@ Session.connect = function(context, bridge, username, deviceType, callback, erro
     }
 
     function checkAuthError(e) {
-      Log.d(TAG, "registering with bridge: %s", bridge.internalipaddress);
+      Log.d(TAG, "registering with bridge: %s", bridge);
     }
 
     Hue.getLights(context, bridge, username, checkAuth, checkAuthError);
@@ -126,8 +126,10 @@ Session.autoconnect = function(context, username, deviceType, main) {
   Log.d(TAG, "discovering bridges...");
 
   Hue.discoverBridges(context, function(bridges) {
+    Log.d(TAG, "bridges: " + bridges);
     for (var i=0; i<bridges.length; i++) {
-      Session.connect(context, bridges[i], username, deviceType, main, error);
+      Log.d("discovered bridge: " + bridges[i]);
+      Session.connect(context, bridges[i].internalipaddress, username, deviceType, main, error);
     }
   });
 }

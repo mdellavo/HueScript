@@ -29,5 +29,10 @@ exports.Util = {
   },
   sleep: function(millis) {
     java.lang.Thread.sleep(millis);
+  },
+  toast: function(context, text, length) {
+    var rv = android.widget.Toast.makeText(context, text, length);
+    rv.show();
+    return rv;
   }
 };

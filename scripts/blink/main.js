@@ -2,7 +2,7 @@ var USERNAME= 'huescript-app';
 var DEVICE_TYPE = 'huescript-app';
 
 var Log = require("log").Log;
-var Util = require("util").Util;
+var Util = require("util");
 var Session = require("hue").Session;
 
 var TAG = __file__.getName();
@@ -93,7 +93,9 @@ function blinker(session, id, hue, duration, delay) {
 
 exports.main = function(context) {
 
-  Session.autoconnect(context, USERNAME, DEVICE_TYPE, function (session) {
+  var bridge = "192.168.1.3";
+
+  Session.connect(context, bridge, USERNAME, DEVICE_TYPE, function (session) {
     Log.d(TAG, "starting blink...");
 
     session.setTrace(true);
