@@ -74,6 +74,7 @@ public class MainActivity
         super.onResume();
         IntentFilter filter = new IntentFilter();
         filter.addAction(SandboxService.ACTION_SCRIPTS_UPDATED);
+
         LocalBroadcastManager.getInstance(this).registerReceiver(mReciever, filter);
         if (mBound)
             loadScripts();

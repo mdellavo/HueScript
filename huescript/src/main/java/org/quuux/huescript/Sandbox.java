@@ -113,6 +113,7 @@ public class Sandbox {
         final Intent intent = new Intent(action);
         intent.putExtra("name", getName());
         intent.putExtra("method", method);
+        Log.d(TAG, "sending -> %s", intent);
         LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
     }
 

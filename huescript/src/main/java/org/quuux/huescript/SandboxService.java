@@ -13,7 +13,6 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
-import android.renderscript.Script;
 import android.support.v4.content.LocalBroadcastManager;
 
 import java.io.File;
@@ -58,7 +57,7 @@ public class SandboxService extends Service {
         final IntentFilter filter = new IntentFilter();
         filter.addAction(Sandbox.ACTION_CALL_START);
         filter.addAction(Sandbox.ACTION_CALL_END);
-        registerReceiver(mReceiver, filter);
+        LocalBroadcastManager.getInstance(this).registerReceiver(mReceiver, filter);
     }
 
     @Override
@@ -95,6 +94,7 @@ public class SandboxService extends Service {
 
     public void doRunSandbox(final Sandbox sandbox) {
         if (!mRunningScripts.contains(sandbox)) {
+            Log.d(TAG, "calling %s.%s", sandbox.getName(), "main");
             mRunningScripts.add(sandbox);
             sandbox.callExport(this, "main", this);
         }
@@ -271,7 +271,7 @@ public class SandboxService extends Service {
     };
 
     private void scriptFinished(final String name) {
-        mHandler.sendMessage(mHandler.obtainMessage(COMMAND_SCRIPT_FINISHED));
+        mHandler.sendMessage(mHandler.obtainMessage(COMMAND_SCRIPT_FINISHED, name));
     }
 
     private void doScriptFinished(final String name) {
