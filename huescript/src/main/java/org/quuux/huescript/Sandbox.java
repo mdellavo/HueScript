@@ -1,7 +1,9 @@
 package org.quuux.huescript;
 
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
+import android.support.v4.content.LocalBroadcastManager;
 
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextAction;
@@ -20,6 +22,8 @@ import java.util.List;
 public class Sandbox {
 
     private static final String TAG = Log.buildTag(Sandbox.class);
+    public static final String ACTION_CALL_START = "org.quuux.huescript.intents.CALL_START";
+    public static final String ACTION_CALL_END = "org.quuux.huescript.intents.CALL_END";
 
     private final File mPath;
     private final File mModulesPath;
@@ -47,6 +51,10 @@ public class Sandbox {
         mModulesPath = new File(path, "libs");
         mWorkerThread = new Thread(mWorker);
         mWorkerThread.start();
+    }
+
+    public File getPath() {
+        return mPath;
     }
 
     public String getName() {
@@ -77,23 +85,35 @@ public class Sandbox {
     }
 
 
-    public void callExport(final String name, final Object... args) {
+    public void callExport(final android.content.Context androidContext, final String method, final Object... args) {
 
         postWithContext(new ContextAction() {
             @Override
             public Object run(final Context context) {
-                final Function func = (Function) mExports.get(name, mExports);
+
+                final Function func = (Function) mExports.get(method, mExports);
+
+                broadcastUpdate(androidContext, ACTION_CALL_START, method);
 
                 try {
                     func.call(context, mScope, mScope, args);
                 } catch(Exception e) {
-                    Log.e(TAG, "error calling export function %s", e, name);
+                    Log.e(TAG, "error calling export method %s", e, method);
                 }
+
+                broadcastUpdate(androidContext, ACTION_CALL_END, method);
 
                 return null;
             }
         });
 
+    }
+
+    private void broadcastUpdate(final android.content.Context context, final String action, final String method) {
+        final Intent intent = new Intent(action);
+        intent.putExtra("name", getName());
+        intent.putExtra("method", method);
+        LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
     }
 
     private void init(final Context context) {
@@ -132,5 +152,6 @@ public class Sandbox {
     public void require() {
         require("main");
     }
+
 
 }

@@ -12,8 +12,8 @@ exports.description = 'A wobbly loop through colors';
 exports.icon = 'http://quuux.org/color-loop.png'
 
 exports.main = function(context) {
-
-  Session.autoconnect(context, USERNAME, DEVICE_TYPE, function (session) {
+  bridge = "192.168.1.3";
+  Session.connect(context, bridge, USERNAME, DEVICE_TYPE, function (session) {
 
     allOff(session);
     Util.sleep(5000);

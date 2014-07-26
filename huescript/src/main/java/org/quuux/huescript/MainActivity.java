@@ -98,13 +98,12 @@ public class MainActivity
     public void onItemClick(final AdapterView<?> parent, final View view, final int position, final long id) {
         Sandbox script = mAdapter.getItem(position);
         Log.d(TAG, "run script %s", script.getName());
-        script.callExport("main", this);
+        mService.runSandbox(script);
     }
 
     private void loadScripts() {
         mAdapter.clear();
         for (Sandbox sandbox : mService.getScripts()) {
-            Log.d(TAG, "loaded script %s", sandbox.getName());
             mAdapter.add(sandbox);
         }
         mAdapter.notifyDataSetChanged();
