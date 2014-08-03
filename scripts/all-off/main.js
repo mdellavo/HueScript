@@ -16,9 +16,7 @@ define(["log", "hue"], function(Log, Hue) {
                 session.setLightState(lightId, {
                     'on': false,
                     'effect': 'none',
-                    'bri': 100,
-                    'sat': 255,
-                    'transitiontime': 1
+                    'transitiontime': 50
                 });
             });
         });

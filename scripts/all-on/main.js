@@ -13,11 +13,13 @@ define(["log", "hue"], function(Log, Hue) {
             session.forEachLight(function (lightId) {
                 Log.d(TAG, "turning off light: %s", lightId);
                 session.setLightState(lightId, {
-                    'on': true,
-                    'effect': 'none',
-                    'bri': 100,
-                    'sat': 255,
-                    'transitiontime': 1
+                    on: true,
+                    effect: 'none',
+                    colormode: 'ct',
+                    ct: 500,
+                    bri: 255,
+                    sat: 255,
+                    transitiontime: 50
                 });
             });
         });
