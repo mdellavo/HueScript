@@ -1,147 +1,155 @@
-var USERNAME= 'huescript-app';
-var DEVICE_TYPE = 'huescript-app';
+define(['log', 'hue'], function (Log, Hue) {
 
-var Log = require("log").Log;
-var Util = require("util");
-var Session = require("hue").Session;
+    var TAG = __file__.getName();
+    var USERNAME = 'huescript-app';
+    var DEVICE_TYPE = 'huescript-app';
 
-var TAG = __file__.getName();
+    var Session = Hue.Session;
 
-exports.name = 'Blink';
-exports.description = 'Flash lights one at a time';
-exports.icon = 'http://example.com/icon.png'
+    var post = function (f) {
+        Handler.post(new java.lang.Runnable({
+            run: f
+        }));
+    };
 
-function post(f) {
-  Handler.post(new java.lang.Runnable({
-    run: f
-  }));
-}
+    var postDelayed = function (f, delay) {
+        Handler.postDelayed(new java.lang.Runnable({
+            run: f
+        }), delay);
+    };
 
-function postDelayed(f, delay) {
-  Handler.postDelayed(new java.lang.Runnable({
-    run: f
-  }), delay);
-}
+    var repeat = function (callback, delay) {
 
 
-function repeat(callback, delay) {
+        function timeout() {
+            Log.d(TAG, "timer fires!");
 
+            var delay = callback();
+            if (delay > 0) {
+                Log.d(TAG, "timer firing in %s", delay);
+                postDelayed(timeout, delay);
+            }
+        }
 
-  function timeout() {
-      Log.d(TAG, "timer fires!");
-
-      var delay = callback();
-      if (delay > 0) {
-        Log.d(TAG, "timer firing in %s", delay);
         postDelayed(timeout, delay);
-      }
-  }
+    };
 
-  postDelayed(timeout, delay);
-}
+    var repeatFor = function (func, duration, delay) {
+        var start = now();
+        var count = 0;
 
-function repeatFor(func, duration, delay) {
-  var start = now();
-  var count = 0;
+        function repeater() {
+            var n = now();
+            var lapsed = n - start;
 
-  function repeater() {
-    var n = now();
-    var lapsed = n - start;
+            if (lapsed > duration)
+                return -1;
 
-    if (lapsed > duration)
-      return -1;
+            var delay = func(count, start, n);
 
-    var delay = func(count, start, n);
+            count += 1;
 
-    count += 1;
+            return Math.max(duration - lapsed, delay);
+        }
 
-    return Math.max(duration - lapsed, delay);
-  }
-
-  repeat(repeater, delay);
-}
+        repeat(repeater, delay);
+    };
 
 
-function now() {
-  return java.lang.System.currentTimeMillis();
-}
+    var now = function () {
+        return java.lang.System.currentTimeMillis();
+    };
 
-var random = new java.util.Random();
+    var random = new java.util.Random();
 
-function blinker(session, id, hue, duration, delay) {
-  var start = now();
+    var blinker = function (session, id, hue, duration, delay) {
+        var start = now();
 
-  function blink() {
-    Log.d(TAG, "blinking %s hue=%s", id, hue);
+        function blink() {
+            Log.d(TAG, "blinking %s hue=%s", id, hue);
 
 
-    session.setLightState(id, {
-      'on': true,
-      'bri': 100,
-      'hue': hue,
-      'transitiontime': 1,
-      'effect': 'colorloop'
-    });
+            session.setLightState(id, {
+                'on': true,
+                'bri': 100,
+                'hue': hue,
+                'transitiontime': 1,
+                'effect': 'colorloop'
+            });
 
-    postDelayed(function() { off(session, id) }, delay / 2);
+            postDelayed(function () {
+                off(session, id)
+            }, delay / 2);
 
-    return delay;
-  }
+            return delay;
+        }
 
-  return blink;
-}
+        return blink;
+    };
 
-exports.main = function(context) {
+    var toggle = function (session, lightId, state) {
+        session.setLightState(lightId, {
+            'on': state,
+            'effect': 'none',
+            'bri': 100,
+            'sat': 255,
+            'transitiontime': 1
+        });
+    };
 
-  var bridge = "192.168.1.3";
+    var off = function (session, lightId) {
+        toggle(session, lightId, false);
+    };
 
-  Session.connect(context, bridge, USERNAME, DEVICE_TYPE, function (session) {
-    Log.d(TAG, "starting blink...");
+    var on = function (session, lightId) {
+        toggle(session, lightId, true);
+    };
 
-    session.setTrace(true);
+    var allOff = function (session) {
+        session.forEachLight(function (lightId) {
+            off(session, lightId);
+        });
+    };
 
-    Log.d(TAG, "off!!!");
+    var main = function (context) {
 
-    allOff(session);
+        var bridge = "192.168.1.3";
 
-    var hue_max = 65535;
-    var delay = 2 * 1000;
-    var duration = 30 * 1000;
+        Session.connect(context, bridge, USERNAME, DEVICE_TYPE, function (session) {
+            Log.d(TAG, "starting blink...");
 
-    var hue = random.nextInt(hue_max)
-    function startBlinking(lights) {
-      for (var id in lights) {
-        hue = (hue + random.nextInt(hue_max/10)) % hue_max;
-        var blink = blinker(session, id, hue, duration, delay);
-        repeatFor(blink, duration, delay)
-        blink();
-      }
-    }
+            session.setTrace(true);
 
-    session.getLights(startBlinking);
-  })
-};
+            Log.d(TAG, "off!!!");
 
-function toggle(session, lightId, state) {
-  session.setLightState(lightId, {
-    'on': state,
-    'effect': 'none',
-    'bri': 100,
-    'sat': 255,
-    'transitiontime': 1
-  });
-}
+            allOff(session);
 
-function off(session, lightId) {
-  toggle(session, lightId, false);
-}
+            var hue_max = 65535;
+            var delay = 2 * 1000;
+            var duration = 30 * 1000;
 
-function on(session, lightId) {
-  toggle(session, lightId, true);
-}
+            var hue = random.nextInt(hue_max)
 
-function allOff(session) {
-  session.forEachLight(function(lightId) {
-    off(session, lightId);
-  });
-}
+            function startBlinking(lights) {
+                for (var id in lights) {
+                    hue = (hue + random.nextInt(hue_max / 10)) % hue_max;
+                    var blink = blinker(session, id, hue, duration, delay);
+                    repeatFor(blink, duration, delay)
+                    blink();
+                }
+            }
+
+            session.getLights(startBlinking);
+        })
+    };
+
+    return {
+        name: 'Blink',
+        description: 'Flash lights one at a time',
+        icon: 'http://example.com/icon.png',
+        main: main
+    };
+});
+
+
+

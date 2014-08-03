@@ -8,14 +8,25 @@ import android.support.v4.content.LocalBroadcastManager;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextAction;
 import org.mozilla.javascript.ContextFactory;
+import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.Function;
-import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.WrapFactory;
+import org.mozilla.javascript.commonjs.module.ModuleScriptProvider;
 import org.mozilla.javascript.commonjs.module.Require;
-import org.mozilla.javascript.tools.shell.Global;
+import org.mozilla.javascript.commonjs.module.RequireBuilder;
+import org.mozilla.javascript.commonjs.module.provider.SoftCachingModuleScriptProvider;
+import org.mozilla.javascript.commonjs.module.provider.UrlModuleSourceProvider;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -27,10 +38,11 @@ public class Sandbox {
 
     private final File mPath;
     private final File mModulesPath;
-    private Global mScope = new Global();
+    private Scriptable mScope;
     private Require mRequire;
     private Scriptable mExports;
     private Handler mHandler;
+    private ModuleCache mModuleCache = new ModuleCache();
 
     private Thread mWorkerThread;
     private Runnable mWorker = new Runnable() {
@@ -62,11 +74,11 @@ public class Sandbox {
     }
 
     public String getScriptName() {
-        return (String) mExports.get("name", mExports);
+        return mExports != null ? (String) mExports.get("name", mExports) : null;
     }
 
     public String getScriptDescription() {
-        return (String) mExports.get("description", mExports);
+        return mExports != null ? (String) mExports.get("description", mExports) : null;
     }
 
     private void postWithContext(final ContextAction runnable) {
@@ -120,21 +132,63 @@ public class Sandbox {
     private void init(final Context context) {
         Log.d(TAG, "initing sandbox");
 
-        if (mRequire == null) {
-            mScope.initStandardObjects(context, false);
-
-            List<String> paths = Arrays.asList(mPath.getAbsolutePath(), mModulesPath.getAbsolutePath());
-            mRequire = mScope.installRequire(context, paths, false);
-        }
-
-        mScope.put("Handler", mScope, mHandler);
-        mScope.put("__file__", mScope, new File(mPath, "main.js"));
-
         final WrapFactory wrapFactory = context.getWrapFactory();
         wrapFactory.setJavaPrimitiveWrap(false);
 
         context.setLanguageVersion(170);
         context.setOptimizationLevel(-1);
+
+        if (mRequire == null) {
+            mScope = context.initStandardObjects();
+
+            mScope.put("Handler", mScope, mHandler);
+            mScope.put("__file__", mScope, new File(mPath, "main.js"));
+            mScope.put("__defined__", mScope, mModuleCache);
+
+            List<String> paths = Arrays.asList(mPath.getAbsolutePath(), mModulesPath.getAbsolutePath());
+
+            List<URI> uris = new ArrayList<URI>();
+            for (String path : paths) {
+                try {
+                    URI uri = new URI(path);
+                    if (!uri.isAbsolute()) {
+                        // call resolve("") to canonify the path
+                        uri = new File(path).toURI().resolve("");
+                    }
+                    if (!uri.toString().endsWith("/")) {
+                        // make sure URI always terminates with slash to
+                        // avoid loading from unintended locations
+                        uri = new URI(uri + "/");
+                    }
+                    uris.add(uri);
+                } catch (URISyntaxException e) {
+                    Log.e(TAG, "error loading module path", e);
+                }
+            }
+
+            Script define = null;
+            try {
+                define = context.compileReader(
+                        new FileReader(new File(mModulesPath.getAbsolutePath(), "require.js")),
+                        "require.js",
+                        1,
+                        null
+                );
+            } catch (FileNotFoundException e) {
+                Log.e(TAG, "error installing define()", e);
+            } catch (IOException e) {
+                Log.e(TAG, "error installing define()", e);
+            }
+
+            final ModuleScriptProvider provider = new SoftCachingModuleScriptProvider(new UrlModuleSourceProvider(uris, null));
+            mRequire = new RequireBuilder()
+                    .setModuleScriptProvider(provider)
+                    .setPreExec(define)
+                    .createRequire(context, mScope);
+            mRequire.install(mScope);
+
+        }
+
     }
 
     public void require(final String name) {
@@ -143,8 +197,14 @@ public class Sandbox {
         ContextFactory.getGlobal().call(new ContextAction() {
             @Override
             public Object run(final Context context) {
-                init(context);
-                mExports = mRequire.requireMain(context, name);
+                try {
+                    init(context);
+                    Scriptable exports = mRequire.requireMain(context, name);
+                    Log.d(TAG, "exports = %s", exports);
+                    mExports = (Scriptable) exports.get("defined", exports);
+                } catch (EcmaError e) {
+                    Log.d(TAG, "could not load %s", e, name);
+                }
                 return null;
             }
         });
@@ -154,5 +214,17 @@ public class Sandbox {
         require("main");
     }
 
+    class ModuleCache extends ScriptableObject {
+
+        @Override
+        public String getClassName() {
+            return "ModuleCache";
+        }
+
+        @Override
+        public Object getDefaultValue(final Class<?> typeHint) {
+            return toString();
+        }
+    }
 
 }

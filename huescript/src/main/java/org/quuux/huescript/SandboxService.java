@@ -88,6 +88,10 @@ public class SandboxService extends Service {
         return mScripts;
     }
 
+    public boolean isRunning(final Sandbox script) {
+        return mRunningScripts.contains(script);
+    }
+
     public void runSandbox(final Sandbox sandbox) {
         mHandler.sendMessage(mHandler.obtainMessage(COMMAND_RUN_SCRIPT, sandbox));
     }

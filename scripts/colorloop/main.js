@@ -1,71 +1,75 @@
-var USERNAME= 'huescript-app';
-var DEVICE_TYPE = 'huescript-app';
+define(["log", "util", "hue"], function (Log, Util, Hue) {
 
-var Session = require("hue").Session;
-var Log = require("log").Log;
-var Util = require("util").Util;
+    var TAG = __file__.getName();
 
-var TAG = __file__.getName();
+    var USERNAME = 'huescript-app';
+    var DEVICE_TYPE = 'huescript-app';
 
-exports.name = 'Color Loop';
-exports.description = 'A wobbly loop through colors';
-exports.icon = 'http://quuux.org/color-loop.png'
+    var Session = Hue.Session;
 
-exports.main = function(context) {
-  bridge = "192.168.1.3";
-  Session.connect(context, bridge, USERNAME, DEVICE_TYPE, function (session) {
+    var toggle = function(session, lightId, state) {
+        session.setLightState(lightId, {
+            'on': state,
+            'effect': 'none',
+            'bri': 100,
+            'sat': 255,
+            'transitiontime': 1
+        });
+    };
 
-    allOff(session);
-    Util.sleep(5000);
+    var off = function(session, lightId) {
+        toggle(session, lightId, false);
+    };
 
-    var random = new java.util.Random();
+    var on = function(session, lightId) {
+        toggle(session, lightId, true);
+    };
 
-    var hue_max = 65535;
-    var hue_slop = 0;
+    var allOff = function(session) {
+        session.forEachLight(function (lightId) {
+            off(session, lightId);
+        });
+    };
 
-    var hue = random.nextInt(hue_max);
+    var main = main = function (context) {
+        bridge = "192.168.1.3";
+        Session.connect(context, bridge, USERNAME, DEVICE_TYPE, function (session) {
 
-    session.forEachLight(function(lightId) {
-      hue_slop += random.nextInt(hue_max / 10);
+            allOff(session);
+            Util.sleep(5000);
 
-      session.setLightState(lightId, {
-        'on': true,
-        'bri': random.nextInt(100),
-        'hue': Math.round((hue + hue_slop) % hue_max),
-        'sat': 255,
-        'effect': 'colorloop',
-        'transitiontime': random.nextInt(100)
-      }, function(json) {
-           Util.dump(TAG, "set light state json", json);
-         });
+            var random = new java.util.Random();
 
-      Util.sleep(random.nextInt(3000));
+            var hue_max = 65535;
+            var hue_slop = 0;
 
-    });
-  });
-};
+            var hue = random.nextInt(hue_max);
 
+            session.forEachLight(function (lightId) {
+                hue_slop += random.nextInt(hue_max / 10);
 
-function toggle(session, lightId, state) {
-  session.setLightState(lightId, {
-    'on': state,
-    'effect': 'none',
-    'bri': 100,
-    'sat': 255,
-    'transitiontime': 1
-  });
-}
+                session.setLightState(lightId, {
+                    'on': true,
+                    'bri': random.nextInt(100),
+                    'hue': Math.round((hue + hue_slop) % hue_max),
+                    'sat': 255,
+                    'effect': 'colorloop',
+                    'transitiontime': random.nextInt(100)
+                }, function (json) {
+                    Util.dump(TAG, "set light state json", json);
+                });
 
-function off(session, lightId) {
-  toggle(session, lightId, false);
-}
+                Util.sleep(random.nextInt(3000));
 
-function on(session, lightId) {
-  toggle(session, lightId, true);
-}
+            });
+        });
+    };
 
-function allOff(session) {
-  session.forEachLight(function(lightId) {
-    off(session, lightId);
-  });
-}
+    return {
+        name: 'Color Loop',
+        description:'A wobbly loop through colors',
+        icon: 'http://quuux.org/color-loop.png',
+        main: main
+    };
+
+});

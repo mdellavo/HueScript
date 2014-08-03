@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.v4.content.LocalBroadcastManager;
@@ -18,6 +19,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.GridView;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 public class MainActivity
@@ -74,6 +76,8 @@ public class MainActivity
         super.onResume();
         IntentFilter filter = new IntentFilter();
         filter.addAction(SandboxService.ACTION_SCRIPTS_UPDATED);
+        filter.addAction(Sandbox.ACTION_CALL_START);
+        filter.addAction(Sandbox.ACTION_CALL_END);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mReciever, filter);
         if (mBound)
@@ -144,6 +148,7 @@ public class MainActivity
             final Holder holder = (Holder) v.getTag();
             holder.scriptName.setText(item.getScriptName());
             holder.scriptDescription.setText(item.getScriptDescription());
+            holder.scriptName.setTypeface(null, mService.isRunning(item) ? Typeface.BOLD : Typeface.NORMAL);
         }
     }
 
@@ -170,8 +175,12 @@ public class MainActivity
         @Override
         public void onReceive(final Context context, final Intent intent) {
             Log.d(TAG, "broadcast: %s", intent);
-            if (SandboxService.ACTION_SCRIPTS_UPDATED.equals(intent.getAction()))
+
+            final String action = intent.getAction();
+            if (SandboxService.ACTION_SCRIPTS_UPDATED.equals(action))
                 loadScripts();
+            else if (Sandbox.ACTION_CALL_START.equals(action) || Sandbox.ACTION_CALL_END.equals(action))
+                mAdapter.notifyDataSetChanged();
         }
     };
 

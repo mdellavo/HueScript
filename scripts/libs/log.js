@@ -1,1 +1,3 @@
-exports.Log = org.quuux.huescript.Log;
+define('Log', [], function() {
+    return org.quuux.huescript.Log;
+});
