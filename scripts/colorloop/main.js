@@ -67,6 +67,7 @@ define(["log", "util", "hue"], function (Log, Util, Hue) {
 
     return {
         name: 'Color Loop',
+        color: '#008800',
         description:'A wobbly loop through colors',
         icon: 'http://quuux.org/color-loop.png',
         main: main

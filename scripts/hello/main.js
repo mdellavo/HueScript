@@ -25,7 +25,7 @@ define(['log'], function(Log) {
     return {
         name: 'Hello',
         description: 'Hello World',
-        color: '#800',
+        color: '#880000',
         background: 'http://example.com/icon.png',
         main: main
     };

@@ -145,6 +145,7 @@ define(['log', 'hue'], function (Log, Hue) {
 
     return {
         name: 'Blink',
+        color: '#000088',
         description: 'Flash lights one at a time',
         icon: 'http://example.com/icon.png',
         main: main

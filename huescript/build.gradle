@@ -40,4 +40,5 @@ dependencies {
     compile 'com.google.code.gson:gson:2.2.4'
     compile 'ro.isdc.wro4j:rhino:1.7R5-20130223-1'
     compile 'com.squareup.okhttp:okhttp:1.2.1'
+    compile 'com.github.matthewyork:ColoursLibrary:1.0.+@aar'
 }

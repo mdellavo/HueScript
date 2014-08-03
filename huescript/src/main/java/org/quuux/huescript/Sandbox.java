@@ -92,7 +92,7 @@ public class Sandbox {
     }
 
     public String getColor() {
-        return (String) getExport("color");za
+        return (String) getExport("color");
     }
 
     private void postWithContext(final ContextAction runnable) {

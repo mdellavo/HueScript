@@ -8,6 +8,9 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ShapeDrawable;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.support.v4.content.LocalBroadcastManager;
@@ -22,6 +25,8 @@ import android.widget.ArrayAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import com.mattyork.colours.Colour;
 
 public class MainActivity
         extends ActionBarActivity
@@ -115,7 +120,6 @@ public class MainActivity
         mAdapter.notifyDataSetChanged();
     }
     static class Holder {
-        Color color;
         TextView scriptName;
         TextView scriptDescription;
     }
@@ -148,10 +152,22 @@ public class MainActivity
 
         private void bindView(final View v, final Sandbox item) {
             final Holder holder = (Holder) v.getTag();
-            holder.color = Color.parseColor(item.getColor());
+            final String color = item.getColor();
+            if (color != null) {
+                final int parsedColor = Color.parseColor(color);
+
+                final GradientDrawable background = (GradientDrawable) getResources().getDrawable(R.drawable.script);
+                background.setColor(parsedColor);
+                v.setBackgroundDrawable(background);
+
+                final int complementaryColor = Colour.blackOrWhiteContrastingColor(parsedColor);
+                holder.scriptName.setTextColor(complementaryColor);
+                holder.scriptDescription.setTextColor(complementaryColor);
+            }
             holder.scriptName.setText(item.getScriptName());
             holder.scriptDescription.setText(item.getScriptDescription());
             holder.scriptName.setTypeface(null, mService.isRunning(item) ? Typeface.BOLD : Typeface.NORMAL);
+
         }
     }
 
