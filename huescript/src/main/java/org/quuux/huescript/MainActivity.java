@@ -156,9 +156,7 @@ public class MainActivity
             if (color != null) {
                 final int parsedColor = Color.parseColor(color);
 
-                final GradientDrawable background = (GradientDrawable) getResources().getDrawable(R.drawable.script);
-                background.setColor(parsedColor);
-                v.setBackgroundDrawable(background);
+                v.setBackgroundColor(parsedColor);
 
                 final int complementaryColor = Colour.blackOrWhiteContrastingColor(parsedColor);
                 holder.scriptName.setTextColor(complementaryColor);
