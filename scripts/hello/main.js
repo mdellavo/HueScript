@@ -3,25 +3,23 @@ define(['log'], function(Log) {
 
     Log.d(TAG, "initializing hello world");
 
-    function post(f) {
-        Handler.post(new java.lang.Runnable({
+    function postDelayed(f, ms) {
+        Handler.postDelayed(new java.lang.Runnable({
             run: f
-        }));
+        }), ms);
     }
 
     var main = function(context) {
 
         Log.d(TAG, "hello world");
 
-        post(function() {
+        postDelayed(function() {
             android.widget.Toast.makeText(context, "Hello World", android.widget.Toast.LENGTH_LONG).show();
-        });
+        }, 1000);
 
-        java.lang.Thread.sleep(5 * 1000);
-
-        post(function() {
+        postDelayed(function() {
             android.widget.Toast.makeText(context, "Goodbye!", android.widget.Toast.LENGTH_LONG).show();
-        });
+        }, 5000);
     };
 
     return {

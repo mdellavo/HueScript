@@ -49,7 +49,10 @@ public class Sandbox {
         @Override
         public void run() {
             Looper.prepare();
-            mHandler = new Handler();
+            mHandler = new Handler(Looper.myLooper());
+
+            require();
+
             try {
                 Looper.loop();
             } catch(Exception e) {
@@ -57,12 +60,19 @@ public class Sandbox {
             }
         }
     };
+    private boolean mInitialized;
+    private String color;
 
     public Sandbox(final File path) {
         mPath = path;
         mModulesPath = new File(path, "libs");
-        mWorkerThread = new Thread(mWorker);
+        mWorkerThread = new Thread(null, mWorker, String.format("sandbox(%s)", mPath), Integer.MAX_VALUE);
         mWorkerThread.start();
+
+    }
+
+    public Object getExport(final String name) {
+        return mExports != null ? (String) mExports.get(name, mExports) : null;
     }
 
     public File getPath() {
@@ -74,11 +84,15 @@ public class Sandbox {
     }
 
     public String getScriptName() {
-        return mExports != null ? (String) mExports.get("name", mExports) : null;
+        return (String) getExport("name");
     }
 
     public String getScriptDescription() {
-        return mExports != null ? (String) mExports.get("description", mExports) : null;
+        return (String) getExport("description");
+    }
+
+    public String getColor() {
+        return (String) getExport("color");za
     }
 
     private void postWithContext(final ContextAction runnable) {
@@ -88,7 +102,11 @@ public class Sandbox {
                 ContextFactory.getGlobal().call(new ContextAction() {
                     @Override
                     public Object run(final Context context) {
-                        init(context);
+                        if (!mInitialized) {
+                            mInitialized = true;
+                            init(context);
+                        }
+
                         return runnable.run(context);
                     }
                 });
@@ -194,7 +212,7 @@ public class Sandbox {
     public void require(final String name) {
         Log.d(TAG, "requiring %s", name);
 
-        ContextFactory.getGlobal().call(new ContextAction() {
+        postWithContext(new ContextAction() {
             @Override
             public Object run(final Context context) {
                 try {
@@ -213,6 +231,7 @@ public class Sandbox {
     public void require() {
         require("main");
     }
+
 
     class ModuleCache extends ScriptableObject {
 

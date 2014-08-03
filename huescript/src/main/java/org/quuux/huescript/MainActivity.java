@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -114,6 +115,7 @@ public class MainActivity
         mAdapter.notifyDataSetChanged();
     }
     static class Holder {
+        Color color;
         TextView scriptName;
         TextView scriptDescription;
     }
@@ -146,6 +148,7 @@ public class MainActivity
 
         private void bindView(final View v, final Sandbox item) {
             final Holder holder = (Holder) v.getTag();
+            holder.color = Color.parseColor(item.getColor());
             holder.scriptName.setText(item.getScriptName());
             holder.scriptDescription.setText(item.getScriptDescription());
             holder.scriptName.setTypeface(null, mService.isRunning(item) ? Typeface.BOLD : Typeface.NORMAL);

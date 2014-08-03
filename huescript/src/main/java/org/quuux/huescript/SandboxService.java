@@ -121,7 +121,6 @@ public class SandboxService extends Service {
     private Sandbox loadScript(final File path) {
         Log.d(TAG, "loading script %s", path.getAbsolutePath());
         final Sandbox sandbox = new Sandbox(path);
-        sandbox.require();
         mScripts.add(sandbox);
         return sandbox;
     }
@@ -213,7 +212,6 @@ public class SandboxService extends Service {
         boolean exists = script != null;
         if (!exists) {
             script = new Sandbox(path);
-            script.require();
             mScripts.add(script);
         }
 
